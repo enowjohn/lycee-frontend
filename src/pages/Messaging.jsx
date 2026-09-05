@@ -118,21 +118,39 @@ const Messaging = () => {
     if (!socket || !messageInput.trim()) return;
     
     const senderName = `${user.first_name} ${user.last_name}`;
+    const tempMessage = {
+      id: Date.now(),
+      sender_id: user.id,
+      receiver_id: selectedConversation || null,
+      class_level: activeTab === 'class' ? user.class_level : null,
+      message: messageInput,
+      sender_name: senderName,
+      created_at: new Date().toISOString()
+    };
     
-    if (activeTab === 'private' && selectedConversation) {
-      socket.emit('private_message', {
-        senderId: user.id,
-        receiverId: selectedConversation,
-        message: messageInput,
-        senderName
-      });
-    } else if (activeTab === 'class' && user.class_level) {
+    // Add message to UI immediately
+    if (activeTab === 'private') {
+      setMessages(prev => [...prev, tempMessage]);
+    } else {
+      setClassMessages(prev => [...prev, tempMessage]);
+    }
+    
+    if (activeTab === 'class' && user.class_level) {
       socket.emit('class_message', {
         senderId: user.id,
         classLevel: user.class_level,
         message: messageInput,
         senderName
       });
+    } else if (activeTab === 'private' && selectedConversation) {
+      socket.emit('private_message', {
+        senderId: user.id,
+        receiverId: selectedConversation,
+        message: messageInput,
+        senderName
+      });
+    } else if (activeTab === 'private') {
+      toast.error('Please enter a recipient user ID for private messaging');
     }
     
     setMessageInput('');
@@ -309,6 +327,17 @@ const Messaging = () => {
               <h2 className="text-lg font-semibold text-gray-800">
                 {activeTab === 'private' ? 'Private Chat' : `Class Chat - ${user?.class_level || 'N/A'}`}
               </h2>
+              {activeTab === 'private' && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    value={selectedConversation || ''}
+                    onChange={(e) => setSelectedConversation(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="Enter recipient user ID to chat privately"
+                  />
+                </div>
+              )}
             </div>
             
             {/* Messages List */}
