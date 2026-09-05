@@ -9,6 +9,7 @@ import {
   ChipIcon
 } from '@heroicons/react/outline';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../config/api';
 
 const AIChat = () => {
   const [messages, setMessages] = useState([
@@ -45,7 +46,7 @@ const AIChat = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/ai/chat', {
+      const response = await axios.post(`${API_BASE_URL}/api/ai/chat`, {
         message: userMessage.content,
         conversationHistory: messages.slice(-10).map(m => ({
           role: m.role,

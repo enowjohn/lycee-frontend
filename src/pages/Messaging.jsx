@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { PaperAirplaneIcon, MailIcon, CheckIcon, ChatIcon, UsersIcon } from '@heroicons/react/outline';
+import { 
+  PaperAirplaneIcon, MailIcon, CheckIcon, ChatIcon, UsersIcon 
+} from '@heroicons/react/outline';
 import toast from 'react-hot-toast';
 import io from 'socket.io-client';
+import { API_BASE_URL } from '../config/api';
 
 const Messaging = () => {
   const [socket, setSocket] = useState(null);
@@ -28,7 +31,7 @@ const Messaging = () => {
         setUser(userData);
         
         // Connect to Socket.io
-        const newSocket = io('http://localhost:5000');
+        const newSocket = io(API_BASE_URL);
         setSocket(newSocket);
         
         // Join user's personal room
@@ -74,12 +77,12 @@ const Messaging = () => {
   const fetchMessages = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/messages/conversations', {
+      const response = await axios.get(`${API_BASE_URL}/api/messages/conversations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       // Fetch messages for each conversation
       for (const conv of response.data) {
-        const msgResponse = await axios.get(`http://localhost:5000/api/messages/${conv.other_user_id}`, {
+        const msgResponse = await axios.get(`${API_BASE_URL}/api/messages/${conv.other_user_id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setMessages(prev => [...prev, ...msgResponse.data]);
@@ -92,7 +95,7 @@ const Messaging = () => {
   const fetchClassMessages = async (classLevel) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/class-messages/${classLevel}`, {
+      const response = await axios.get(`${API_BASE_URL}/api/class-messages/${classLevel}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setClassMessages(response.data);
@@ -104,7 +107,7 @@ const Messaging = () => {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/notifications', {
+      const response = await axios.get(`${API_BASE_URL}/api/notifications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(response.data);
@@ -176,7 +179,7 @@ const Messaging = () => {
   const markAsRead = async (notificationId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/notifications/${notificationId}/read`, {}, {
+      await axios.put(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchNotifications();

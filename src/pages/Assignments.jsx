@@ -12,6 +12,7 @@ import {
   TrashIcon
 } from '@heroicons/react/outline';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../config/api';
 
 const Assignments = () => {
   const [assignments, setAssignments] = useState([]);
@@ -89,7 +90,7 @@ const Assignments = () => {
   const fetchTeacherAssignments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/assignments/teacher', {
+      const response = await axios.get(`${API_BASE_URL}/api/assignments/teacher`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAssignments(response.data);
@@ -103,7 +104,7 @@ const Assignments = () => {
   const fetchStudentAssignments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/assignments', {
+      const response = await axios.get(`${API_BASE_URL}/api/assignments`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAssignments(response.data);
@@ -117,7 +118,7 @@ const Assignments = () => {
   const fetchSubmissions = async (assignmentId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/assignments/${assignmentId}/submissions`, {
+      const response = await axios.get(`${API_BASE_URL}/api/assignments/${assignmentId}/submissions`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSubmissions(response.data);
@@ -144,7 +145,7 @@ const Assignments = () => {
     }
 
     try {
-      await axios.post('http://localhost:5000/api/assignments', formData, {
+      await axios.post(`${API_BASE_URL}/api/assignments`, formData, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -175,7 +176,7 @@ const Assignments = () => {
     const token = localStorage.getItem('token');
     
     try {
-      await axios.put(`http://localhost:5000/api/assignments/${selectedAssignment.id}/grade`, gradingForm, {
+      await axios.put(`${API_BASE_URL}/api/assignments/${selectedAssignment.id}/grade`, gradingForm, {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Submission updated successfully!');
@@ -221,7 +222,7 @@ const Assignments = () => {
     }
 
     try {
-      await axios.put(`http://localhost:5000/api/assignments/${selectedAssignment.id}`, formData, {
+      await axios.put(`${API_BASE_URL}/api/assignments/${selectedAssignment.id}`, formData, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -240,7 +241,7 @@ const Assignments = () => {
     
     const token = localStorage.getItem('token');
     try {
-      await axios.delete(`http://localhost:5000/api/assignments/${assignmentId}`, {
+      await axios.delete(`${API_BASE_URL}/api/assignments/${assignmentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Assignment deleted successfully!');
@@ -252,7 +253,7 @@ const Assignments = () => {
 
   const handleDownload = (filePath) => {
     const link = document.createElement('a');
-    link.href = `http://localhost:5000/uploads/${filePath}`;
+    link.href = `${API_BASE_URL}/uploads/${filePath}`;
     link.download = filePath;
     document.body.appendChild(link);
     link.click();
@@ -275,7 +276,7 @@ const Assignments = () => {
     }
 
     try {
-      await axios.post(`http://localhost:5000/api/assignments/${selectedAssignment.id}/submit`, formData, {
+      await axios.post(`${API_BASE_URL}/api/assignments/${selectedAssignment.id}/submit`, formData, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
