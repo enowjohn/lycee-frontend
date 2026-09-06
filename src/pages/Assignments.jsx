@@ -18,10 +18,12 @@ const Assignments = () => {
   const [assignments, setAssignments] = useState([]);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const [mySubmissions, setMySubmissions] = useState({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showMySubmissionModal, setShowMySubmissionModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
@@ -108,6 +110,25 @@ const Assignments = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAssignments(response.data);
+      
+      // Fetch student's submission for each assignment
+      const submissionPromises = response.data.map(async (assignment) => {
+        try {
+          const subResponse = await axios.get(`${API_BASE_URL}/api/assignments/${assignment.id}/my-submission`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          return { assignmentId: assignment.id, submission: subResponse.data };
+        } catch (error) {
+          return { assignmentId: assignment.id, submission: null };
+        }
+      });
+      
+      const submissionsData = await Promise.all(submissionPromises);
+      const submissionsMap = {};
+      submissionsData.forEach(item => {
+        submissionsMap[item.assignmentId] = item.submission;
+      });
+      setMySubmissions(submissionsMap);
     } catch (error) {
       console.error('Error fetching assignments:', error);
     } finally {
@@ -266,6 +287,11 @@ const Assignments = () => {
     setShowSubmitModal(true);
   };
 
+  const handleViewMySubmission = (assignmentId) => {
+    setSelectedAssignment(assignments.find(a => a.id === assignmentId));
+    setShowMySubmissionModal(true);
+  };
+
   const handleConfirmSubmission = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -407,13 +433,36 @@ const Assignments = () => {
                   )}
 
                   {user?.role === 'student' && (
-                    <button
-                      onClick={() => handleSubmitAssignment(assignment.id)}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
-                    >
-                      <UploadIcon className="h-4 w-4 mr-2" />
-                      Submit Assignment
-                    </button>
+                    mySubmissions[assignment.id] ? (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => handleViewMySubmission(assignment.id)}
+                          className="w-full flex items-center justify-center px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-900 transition-colors text-sm font-medium"
+                        >
+                          <CheckCircleIcon className="h-4 w-4 mr-2" />
+                          View Submission
+                        </button>
+                        <span className={`block text-center text-xs font-medium px-2 py-1 rounded ${
+                          mySubmissions[assignment.id].status === 'approved' ? 'bg-green-100 text-green-800' :
+                          mySubmissions[assignment.id].status === 'rejected' ? 'bg-red-100 text-red-800' :
+                          mySubmissions[assignment.id].status === 'graded' ? 'bg-blue-100 text-blue-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}>
+                          {mySubmissions[assignment.id].status === 'approved' ? '✓ Approved' :
+                           mySubmissions[assignment.id].status === 'rejected' ? '✗ Changes Requested' :
+                           mySubmissions[assignment.id].status === 'graded' ? `Graded: ${mySubmissions[assignment.id].grade}` :
+                           'Submitted'}
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleSubmitAssignment(assignment.id)}
+                        className="w-full flex items-center justify-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
+                      >
+                        <UploadIcon className="h-4 w-4 mr-2" />
+                        Submit Assignment
+                      </button>
+                    )
                   )}
                 </div>
               </div>
@@ -924,6 +973,108 @@ const Assignments = () => {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* My Submission Modal (for students) */}
+      {showMySubmissionModal && selectedAssignment && mySubmissions[selectedAssignment.id] && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">My Submission</h2>
+              <button
+                onClick={() => setShowMySubmissionModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XIcon className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <h3 className="font-semibold text-gray-800 mb-2">{selectedAssignment.title}</h3>
+                <p className="text-sm text-gray-600">{selectedAssignment.description}</p>
+              </div>
+              
+              <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                <h4 className="font-semibold text-blue-800 mb-2">Your Answer</h4>
+                {mySubmissions[selectedAssignment.id].submission_text && (
+                  <p className="text-gray-700">{mySubmissions[selectedAssignment.id].submission_text}</p>
+                )}
+                {mySubmissions[selectedAssignment.id].file_path && (
+                  <button
+                    onClick={() => handleDownload(mySubmissions[selectedAssignment.id].file_path)}
+                    className="mt-2 flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                  >
+                    <DownloadIcon className="h-4 w-4 mr-1" />
+                    Download Your Submission
+                  </button>
+                )}
+              </div>
+              
+              {mySubmissions[selectedAssignment.id].status !== 'submitted' && (
+                <div className={`p-4 rounded-lg ${
+                  mySubmissions[selectedAssignment.id].status === 'approved' ? 'bg-green-50' :
+                  mySubmissions[selectedAssignment.id].status === 'rejected' ? 'bg-red-50' :
+                  mySubmissions[selectedAssignment.id].status === 'failed' ? 'bg-red-50' :
+                  'bg-blue-50'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`font-semibold ${
+                      mySubmissions[selectedAssignment.id].status === 'approved' ? 'text-green-800' :
+                      mySubmissions[selectedAssignment.id].status === 'rejected' ? 'text-red-800' :
+                      mySubmissions[selectedAssignment.id].status === 'failed' ? 'text-red-800' :
+                      'text-blue-800'
+                    }`}>
+                      Status: {mySubmissions[selectedAssignment.id].status.charAt(0).toUpperCase() + mySubmissions[selectedAssignment.id].status.slice(1)}
+                    </span>
+                    {mySubmissions[selectedAssignment.id].grade && (
+                      <span className={`font-bold ${
+                        mySubmissions[selectedAssignment.id].status === 'approved' ? 'text-green-800' :
+                        mySubmissions[selectedAssignment.id].status === 'rejected' ? 'text-red-800' :
+                        mySubmissions[selectedAssignment.id].status === 'failed' ? 'text-red-800' :
+                        'text-blue-800'
+                      }`}>
+                        Grade: {mySubmissions[selectedAssignment.id].grade}
+                      </span>
+                    )}
+                  </div>
+                  {mySubmissions[selectedAssignment.id].marks && (
+                    <p className={`text-sm ${
+                      mySubmissions[selectedAssignment.id].status === 'approved' ? 'text-green-700' :
+                      mySubmissions[selectedAssignment.id].status === 'rejected' ? 'text-red-700' :
+                      mySubmissions[selectedAssignment.id].status === 'failed' ? 'text-red-700' :
+                      'text-blue-700'
+                    }`}>
+                      Marks: {mySubmissions[selectedAssignment.id].marks} / {selectedAssignment.total_marks}
+                    </p>
+                  )}
+                  {mySubmissions[selectedAssignment.id].feedback && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className={`text-sm ${
+                        mySubmissions[selectedAssignment.id].status === 'approved' ? 'text-green-700' :
+                        mySubmissions[selectedAssignment.id].status === 'rejected' ? 'text-red-700' :
+                        mySubmissions[selectedAssignment.id].status === 'failed' ? 'text-red-700' :
+                        'text-blue-700'
+                      }`}>
+                        <strong>Feedback:</strong> {mySubmissions[selectedAssignment.id].feedback}
+                      </p>
+                    </div>
+                  )}
+                  {mySubmissions[selectedAssignment.id].status === 'rejected' && (
+                    <button
+                      onClick={() => {
+                        setShowMySubmissionModal(false);
+                        handleSubmitAssignment(selectedAssignment.id);
+                      }}
+                      className="mt-3 w-full px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
+                    >
+                      Resubmit Assignment
+                    </button>
+                  )}
                 </div>
               )}
             </div>

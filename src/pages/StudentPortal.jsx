@@ -9,6 +9,7 @@ import {
   CalendarIcon,
   TrendingUpIcon
 } from '@heroicons/react/outline';
+import { API_BASE_URL } from '../config/api';
 
 const StudentPortal = () => {
   const [studentData, setStudentData] = useState(null);
@@ -26,13 +27,13 @@ const StudentPortal = () => {
       const token = localStorage.getItem('token');
       
       const [gradesRes, sessionsRes, assignmentsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/marks/student/1', {
+        axios.get(`${API_BASE_URL}/api/marks/student/1`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         }),
-        axios.get('http://localhost:5000/api/video-sessions', {
+        axios.get(`${API_BASE_URL}/api/video-sessions`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         }),
-        axios.get('http://localhost:5000/api/assignments')
+        axios.get(`${API_BASE_URL}/api/assignments`)
       ]);
       
       setGrades(gradesRes.data);
