@@ -10,6 +10,7 @@ import {
   StarIcon
 } from '@heroicons/react/outline';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const Home = () => {
   const [stats, setStats] = useState({
@@ -54,7 +55,7 @@ const Home = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/statistics');
+      const response = await axios.get(`${API_BASE_URL}/api/statistics`);
       setStats(response.data);
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -63,7 +64,7 @@ const Home = () => {
 
   const fetchAnnouncements = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/announcements');
+      const response = await axios.get(`${API_BASE_URL}/api/announcements`);
       setAnnouncements(response.data.slice(0, 3));
     } catch (error) {
       console.error('Error fetching announcements:', error);
@@ -72,7 +73,7 @@ const Home = () => {
 
   const fetchEvents = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/events');
+      const response = await axios.get(`${API_BASE_URL}/api/events`);
       setEvents(response.data.slice(0, 3));
     } catch (error) {
       console.error('Error fetching events:', error);

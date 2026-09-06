@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AcademicCapIcon, CheckCircleIcon } from '@heroicons/react/outline';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const Admissions = () => {
   const [formData, setFormData] = useState({
@@ -32,7 +33,7 @@ const Admissions = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/applications', formData);
+      const response = await axios.post(`${API_BASE_URL}/api/applications`, formData);
       setApplicationNumber(response.data.application_number);
       toast.success('Application submitted successfully!');
       setFormData({
@@ -59,7 +60,7 @@ const Admissions = () => {
     const appNumber = prompt('Enter your application number:');
     if (appNumber) {
       try {
-        const response = await axios.get(`http://localhost:5000/api/applications/${appNumber}`);
+        const response = await axios.get(`${API_BASE_URL}/api/applications/${appNumber}`);
         alert(`Application Status: ${response.data.status}`);
       } catch (error) {
         toast.error('Application not found');
