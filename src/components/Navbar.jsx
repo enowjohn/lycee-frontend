@@ -73,7 +73,11 @@ const Navbar = () => {
           {/* Logo */}
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-2">
-              <AcademicCapIcon className="h-8 w-8 text-blue-800" />
+              <img
+                src="/logo/IMG-20260907-WA0038.jpg"
+                alt="Lycée Bilingue Ombessa Logo"
+                className="h-10 w-10 rounded-full object-cover"
+              />
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-blue-800">
                   {language === 'en' ? 'Lycée Bilingue' : 'Lycée Bilingue'}

@@ -9,7 +9,8 @@ import {
   ClockIcon,
   XIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  EyeIcon
 } from '@heroicons/react/outline';
 import toast from 'react-hot-toast';
 import { API_BASE_URL } from '../config/api';
@@ -24,6 +25,7 @@ const Assignments = () => {
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showMySubmissionModal, setShowMySubmissionModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
@@ -148,6 +150,14 @@ const Assignments = () => {
     }
   };
 
+  const refreshAssignments = () => {
+    if (user?.role === 'teacher') {
+      fetchTeacherAssignments();
+    } else {
+      fetchStudentAssignments();
+    }
+  };
+
   const handleCreateAssignment = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -188,7 +198,11 @@ const Assignments = () => {
       });
       fetchTeacherAssignments();
     } catch (error) {
-      toast.error('Failed to create assignment');
+      if (error.response?.status === 403) {
+        toast.error('Please complete your teacher profile first in Staff Portal');
+      } else {
+        toast.error('Failed to create assignment');
+      }
     }
   };
 
@@ -253,12 +267,12 @@ const Assignments = () => {
       setShowEditModal(false);
       fetchTeacherAssignments();
     } catch (error) {
-      toast.error('Failed to update assignment');
+      toast.error(error.response?.data?.error || 'Failed to update assignment');
     }
   };
 
   const handleDeleteAssignment = async (assignmentId) => {
-    if (!window.confirm('Are you sure you want to delete this assignment?')) return;
+    if (!window.confirm('Are you sure you want to delete this assignment? This cannot be undone.')) return;
     
     const token = localStorage.getItem('token');
     try {
@@ -268,7 +282,7 @@ const Assignments = () => {
       toast.success('Assignment deleted successfully!');
       fetchTeacherAssignments();
     } catch (error) {
-      toast.error('Failed to delete assignment');
+      toast.error(error.response?.data?.error || 'Failed to delete assignment');
     }
   };
 
@@ -279,6 +293,11 @@ const Assignments = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleViewAssignment = (assignmentId) => {
+    setSelectedAssignment(assignments.find(a => a.id === assignmentId));
+    setShowViewModal(true);
   };
 
   const handleSubmitAssignment = async (assignmentId) => {
@@ -395,15 +414,13 @@ const Assignments = () => {
                     </div>
                   </div>
 
-                  {assignment.file_path && (
-                    <button
-                      onClick={() => handleDownload(assignment.file_path)}
-                      className="w-full mb-3 flex items-center justify-center px-4 py-2 border border-blue-800 text-blue-800 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-                    >
-                      <DownloadIcon className="h-4 w-4 mr-2" />
-                      Download Attachment
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleViewAssignment(assignment.id)}
+                    className="w-full mb-3 flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                  >
+                    <EyeIcon className="h-4 w-4 mr-2" />
+                    View Assignment
+                  </button>
 
                   {user?.role === 'teacher' && (
                     <div className="flex space-x-2">
@@ -420,12 +437,14 @@ const Assignments = () => {
                       <button
                         onClick={() => handleEditAssignment(assignment)}
                         className="flex items-center justify-center px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                        title="Edit assignment"
                       >
                         <PencilIcon className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteAssignment(assignment.id)}
                         className="flex items-center justify-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                        title="Delete assignment"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>
@@ -470,6 +489,110 @@ const Assignments = () => {
           </div>
         )}
       </div>
+
+      {/* View Assignment Modal (read-only, for anyone) */}
+      {showViewModal && selectedAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">{selectedAssignment.title}</h2>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XIcon className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                  {selectedAssignment.subject_name || 'Subject'}
+                </span>
+                <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                  {selectedAssignment.class_level}
+                </span>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  selectedAssignment.stream === 'science' ? 'bg-blue-100 text-blue-800' :
+                  selectedAssignment.stream === 'art' ? 'bg-purple-100 text-purple-800' :
+                  'bg-green-100 text-green-800'
+                }`}>
+                  {selectedAssignment.stream}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-500">Teacher</p>
+                  <p className="font-medium text-gray-800">{selectedAssignment.teacher_name || 'Teacher'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Due Date</p>
+                  <p className="font-medium text-gray-800">
+                    {new Date(selectedAssignment.due_date).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Total Marks</p>
+                  <p className="font-medium text-gray-800">{selectedAssignment.total_marks}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-gray-500 text-sm mb-1">Description</p>
+                <p className="text-gray-800 whitespace-pre-wrap">{selectedAssignment.description || 'No description provided.'}</p>
+              </div>
+
+              {selectedAssignment.file_path && (
+                <button
+                  onClick={() => handleDownload(selectedAssignment.file_path)}
+                  className="flex items-center justify-center w-full px-4 py-2 border border-blue-800 text-blue-800 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
+                >
+                  <DownloadIcon className="h-4 w-4 mr-2" />
+                  Download Attachment
+                </button>
+              )}
+
+              {user?.role === 'student' && !mySubmissions[selectedAssignment.id] && (
+                <button
+                  onClick={() => {
+                    setShowViewModal(false);
+                    handleSubmitAssignment(selectedAssignment.id);
+                  }}
+                  className="w-full flex items-center justify-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
+                >
+                  <UploadIcon className="h-4 w-4 mr-2" />
+                  Submit This Assignment
+                </button>
+              )}
+
+              {user?.role === 'teacher' && (
+                <div className="flex space-x-2 pt-2 border-t border-gray-200">
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleEditAssignment(selectedAssignment);
+                    }}
+                    className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                  >
+                    <PencilIcon className="h-4 w-4 mr-2" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleDeleteAssignment(selectedAssignment.id);
+                    }}
+                    className="flex-1 flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                  >
+                    <TrashIcon className="h-4 w-4 mr-2" />
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Assignment Modal */}
       {showCreateModal && (

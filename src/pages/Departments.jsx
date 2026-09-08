@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { UserIcon, MailIcon, PhoneIcon } from '@heroicons/react/outline';
+import { API_BASE_URL } from '../config/api';
 
 const Departments = () => {
   const [teachers, setTeachers] = useState([]);
@@ -12,7 +13,7 @@ const Departments = () => {
 
   const fetchTeachers = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/teachers');
+      const response = await axios.get(`${API_BASE_URL}/api/teachers`);
       setTeachers(response.data);
     } catch (error) {
       console.error('Error fetching teachers:', error);
@@ -84,7 +85,7 @@ const Departments = () => {
                 <div className="h-48 bg-gradient-to-r from-blue-100 to-amber-100 flex items-center justify-center">
                   {teacher.photo ? (
                     <img
-                      src={`http://localhost:5000/uploads/${teacher.photo}`}
+                      src={`${API_BASE_URL}/uploads/${teacher.photo}`}
                       alt={teacher.first_name}
                       className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
                     />

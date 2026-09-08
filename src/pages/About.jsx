@@ -10,8 +10,8 @@ const About = () => {
       subtitle: 'Excellence in Bilingual Education',
       principalMessage: {
         title: "Principal's Welcome",
-        message: "Welcome to Lycée Bilingue Obessa, where we believe in the power of bilingual education to shape future leaders. Our institution has been a beacon of educational excellence for years, combining the best of English and French educational systems to provide students with a truly global perspective.",
-        principalName: "Dr. Jean-Marc Obessa",
+        message: "Welcome to Lycée Bilingue Ombessa, where we believe in the power of bilingual education to shape future leaders. Our institution has been a beacon of educational excellence for years, combining the best of English and French educational systems to provide students with a truly global perspective.",
+        principalName: "Mr ENDONG THOBIAS",
         principalTitle: "Principal"
       },
       mission: {
@@ -124,9 +124,11 @@ const About = () => {
                 {t.principalMessage.message}
               </p>
               <div className="flex items-center">
-                <div className="w-16 h-16 bg-blue-800 rounded-full flex items-center justify-center text-white text-2xl font-bold mr-4">
-                  {t.principalMessage.principalName.charAt(0)}
-                </div>
+                <img
+                  src="/images/IMG-20260907-WA0025.jpg"
+                  alt="Principal"
+                  className="w-20 h-20 rounded-full object-cover mr-4 border-4 border-blue-800"
+                />
                 <div>
                   <p className="font-semibold text-gray-800">{t.principalMessage.principalName}</p>
                   <p className="text-gray-600">{t.principalMessage.principalTitle}</p>

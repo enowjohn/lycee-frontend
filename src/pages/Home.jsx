@@ -25,17 +25,17 @@ const Home = () => {
 
   const banners = [
     {
-      image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200',
+      image: '/images/IMG-20260907-WA0023.jpg',
       title: 'Excellence in Bilingual Education',
       subtitle: 'Preparing leaders for tomorrow'
     },
     {
-      image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200',
+      image: '/images/IMG-20260907-WA0024.jpg',
       title: 'Modern Learning Environment',
       subtitle: 'State-of-the-art facilities'
     },
     {
-      image: 'https://images.unsplash.com/photo-1577896851231-70ef18881754?w=1200',
+      image: '/images/IMG-20260907-WA0033.jpg',
       title: 'Comprehensive Curriculum',
       subtitle: 'English & French streams'
     }
@@ -369,12 +369,23 @@ const Home = () => {
             </p>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
             {[
-              'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=400',
-              'https://images.unsplash.com/photo-1571260899304-425eee4c7efc?w=400',
-              'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=400',
-              'https://images.unsplash.com/photo-1562774053-701939374585?w=400'
+              '/images/IMG-20260907-WA0023.jpg',
+              '/images/IMG-20260907-WA0024.jpg',
+              '/images/IMG-20260907-WA0025.jpg',
+              '/images/IMG-20260907-WA0026.jpg',
+              '/images/IMG-20260907-WA0027.jpg',
+              '/images/IMG-20260907-WA0028.jpg',
+              '/images/IMG-20260907-WA0029.jpg',
+              '/images/IMG-20260907-WA0030.jpg',
+              '/images/IMG-20260907-WA0031.jpg',
+              '/images/IMG-20260907-WA0032.jpg',
+              '/images/IMG-20260907-WA0033.jpg',
+              '/images/IMG-20260907-WA0034.jpg',
+              '/images/IMG-20260907-WA0035.jpg',
+              '/images/IMG-20260907-WA0036.jpg',
+              '/images/IMG-20260907-WA0037.jpg'
             ].map((image, index) => (
               <div key={index} className="relative group overflow-hidden rounded-lg aspect-square">
                 <img

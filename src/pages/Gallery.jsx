@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { PhotographIcon, VideoCameraIcon, FilterIcon, PlusIcon, XIcon } from '@heroicons/react/outline';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../config/api';
 
 const Gallery = () => {
   const [galleryItems, setGalleryItems] = useState([]);
@@ -24,59 +25,257 @@ const Gallery = () => {
 
   const fetchGalleryItems = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/gallery');
-      setGalleryItems(response.data);
+      const response = await axios.get(`${API_BASE_URL}/api/gallery`);
+      if (response.data && response.data.length > 0) {
+        setGalleryItems(response.data);
+      } else {
+        // Set mock data if API returns empty
+        setGalleryItems([
+          {
+            id: 1,
+            title: 'School Photo 1',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0023.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 2,
+            title: 'School Photo 2',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0024.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 3,
+            title: 'The principal',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0025.jpg',
+            file_type: 'image',
+            category: 'activities'
+          },
+          {
+            id: 4,
+            title: 'School Photo 4',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0026.jpg',
+            file_type: 'image',
+            category: 'activities'
+          },
+          {
+            id: 5,
+            title: 'School Photo 5',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0027.jpg',
+            file_type: 'image',
+            category: 'activities'
+          },
+          {
+            id: 6,
+            title: 'School Photo 6',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0028.jpg',
+            file_type: 'image',
+            category: 'activities'
+          },
+          {
+            id: 7,
+            title: 'The Princinpal',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0029.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 8,
+            title: 'School Photo 8',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0030.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 9,
+            title: 'School Photo 9',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0031.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 10,
+            title: 'Principal',
+            description: 'Principal in office',
+            file_path: '/images/IMG-20260907-WA0032.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 11,
+            title: 'Welcoming of students by the principal and some staff administrators',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0033.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 12,
+            title: 'School Photo 12',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0034.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 13,
+            title: 'The princinpal and the staffs members',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0035.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 14,
+            title: 'School Photo 14',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0036.jpg',
+            file_type: 'image',
+            category: 'campus'
+          },
+          {
+            id: 15,
+            title: 'The vice Principal and the some staffs',
+            description: 'School image',
+            file_path: '/images/IMG-20260907-WA0037.jpg',
+            file_type: 'image',
+            category: 'campus'
+          }
+        ]);
+      }
     } catch (error) {
       console.error('Error fetching gallery items:', error);
       // Set mock data if API fails
       setGalleryItems([
         {
           id: 1,
-          title: 'Campus Building',
-          description: 'Main administrative building',
-          file_path: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=800',
+          title: 'School Photo 1',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0023.jpg',
           file_type: 'image',
           category: 'campus'
         },
         {
           id: 2,
-          title: 'Science Laboratory',
-          description: 'Modern science lab facilities',
-          file_path: 'https://images.unsplash.com/photo-1577896851231-70ef18881754?w=800',
-          file_type: 'image',
-          category: 'labs'
-        },
-        {
-          id: 3,
-          title: 'Sports Day 2024',
-          description: 'Annual sports competition',
-          file_path: 'https://images.unsplash.com/photo-1461896836934-ffff8f5c8d9e?w=800',
-          file_type: 'image',
-          category: 'sports'
-        },
-        {
-          id: 4,
-          title: 'Cultural Festival',
-          description: 'Students performing traditional dance',
-          file_path: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=800',
-          file_type: 'image',
-          category: 'cultural'
-        },
-        {
-          id: 5,
-          title: 'Library',
-          description: 'Well-stocked library with study areas',
-          file_path: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800',
+          title: 'School Photo 2',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0024.jpg',
           file_type: 'image',
           category: 'campus'
         },
         {
-          id: 6,
-          title: 'Computer Lab',
-          description: 'ICT facilities for students',
-          file_path: 'https://images.unsplash.com/photo-1562774053-701939374585?w=800',
+          id: 3,
+          title: 'School Photo 3',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0025.jpg',
           file_type: 'image',
-          category: 'labs'
+          category: 'activities'
+        },
+        {
+          id: 4,
+          title: 'School Photo 4',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0026.jpg',
+          file_type: 'image',
+          category: 'activities'
+        },
+        {
+          id: 5,
+          title: 'School Photo 5',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0027.jpg',
+          file_type: 'image',
+          category: 'activities'
+        },
+        {
+          id: 6,
+          title: 'School Photo 6',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0028.jpg',
+          file_type: 'image',
+          category: 'activities'
+        },
+        {
+          id: 7,
+          title: 'School Photo 7',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0029.jpg',
+          file_type: 'image',
+          category: 'campus'
+        },
+        {
+          id: 8,
+          title: 'School Photo 8',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0030.jpg',
+          file_type: 'image',
+          category: 'campus'
+        },
+        {
+          id: 9,
+          title: 'School Photo 9',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0031.jpg',
+          file_type: 'image',
+          category: 'campus'
+        },
+        {
+          id: 10,
+          title: 'Principal',
+          description: 'Principal in office',
+          file_path: '/images/IMG-20260907-WA0032.jpg',
+          file_type: 'image',
+          category: 'campus'
+        },
+        {
+          id: 11,
+          title: 'School Photo 11',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0033.jpg',
+          file_type: 'image',
+          category: 'campus'
+        },
+        {
+          id: 12,
+          title: 'School Photo 12',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0034.jpg',
+          file_type: 'image',
+          category: 'campus'
+        },
+        {
+          id: 13,
+          title: 'School Photo 13',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0035.jpg',
+          file_type: 'image',
+          category: 'campus'
+        },
+        {
+          id: 14,
+          title: 'School Photo 14',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0036.jpg',
+          file_type: 'image',
+          category: 'campus'
+        },
+        {
+          id: 15,
+          title: 'School Photo 15',
+          description: 'School image',
+          file_path: '/images/IMG-20260907-WA0037.jpg',
+          file_type: 'image',
+          category: 'campus'
         }
       ]);
     }
@@ -114,7 +313,7 @@ const Gallery = () => {
     formData.append('file_type', uploadForm.file_type);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/gallery', formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/gallery`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
