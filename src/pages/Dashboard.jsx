@@ -9,6 +9,7 @@ import {
   BellIcon,
   LogoutIcon
 } from '@heroicons/react/outline';
+import { API_BASE_URL } from '../config/api';
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
@@ -33,7 +34,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('token');
       const [statsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/statistics', {
+        axios.get(`${API_BASE_URL}/api/statistics`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);

@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { MenuIcon, XIcon, UserIcon, AcademicCapIcon, BellIcon } from '@heroicons/react/outline';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -21,7 +22,7 @@ const Navbar = () => {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/notifications', {
+      const response = await axios.get(`${API_BASE_URL}/api/notifications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(response.data);
@@ -34,7 +35,7 @@ const Navbar = () => {
   const markAsRead = async (notificationId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/notifications/${notificationId}/read`, {}, {
+      await axios.put(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchNotifications();
@@ -72,7 +73,11 @@ const Navbar = () => {
           {/* Logo */}
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-2">
-              <AcademicCapIcon className="h-8 w-8 text-blue-800" />
+              <img
+                src="/logo/IMG-20260907-WA0038.jpg"
+                alt="Lycée Bilingue Ombessa Logo"
+                className="h-10 w-10 rounded-full object-cover"
+              />
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-blue-800">
                   {language === 'en' ? 'Lycée Bilingue' : 'Lycée Bilingue'}

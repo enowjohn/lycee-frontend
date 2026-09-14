@@ -8,6 +8,7 @@ import {
   PaperAirplaneIcon
 } from '@heroicons/react/outline';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../config/api';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -30,7 +31,7 @@ const Contact = () => {
     setLoading(true);
 
     try {
-      await axios.post('http://localhost:5000/api/contact', formData);
+      await axios.post(`${API_BASE_URL}/api/contact`, formData);
       toast.success('Message sent successfully!');
       setFormData({ name: '', email: '', subject: '', message: '' });
     } catch (error) {

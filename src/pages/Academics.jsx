@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BookOpenIcon, DownloadIcon, FilterIcon } from '@heroicons/react/outline';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const Academics = () => {
   const [subjects, setSubjects] = useState([]);
@@ -13,7 +14,7 @@ const Academics = () => {
 
   const fetchSubjects = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/subjects');
+      const response = await axios.get(`${API_BASE_URL}/api/subjects`);
       setSubjects(response.data);
     } catch (error) {
       console.error('Error fetching subjects:', error);

@@ -9,7 +9,8 @@ import {
   ClockIcon,
   XIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  EyeIcon
 } from '@heroicons/react/outline';
 import toast from 'react-hot-toast';
 import { API_BASE_URL } from '../config/api';
@@ -18,10 +19,13 @@ const Assignments = () => {
   const [assignments, setAssignments] = useState([]);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const [mySubmissions, setMySubmissions] = useState({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showMySubmissionModal, setShowMySubmissionModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
@@ -108,6 +112,25 @@ const Assignments = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAssignments(response.data);
+      
+      // Fetch student's submission for each assignment
+      const submissionPromises = response.data.map(async (assignment) => {
+        try {
+          const subResponse = await axios.get(`${API_BASE_URL}/api/assignments/${assignment.id}/my-submission`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          return { assignmentId: assignment.id, submission: subResponse.data };
+        } catch (error) {
+          return { assignmentId: assignment.id, submission: null };
+        }
+      });
+      
+      const submissionsData = await Promise.all(submissionPromises);
+      const submissionsMap = {};
+      submissionsData.forEach(item => {
+        submissionsMap[item.assignmentId] = item.submission;
+      });
+      setMySubmissions(submissionsMap);
     } catch (error) {
       console.error('Error fetching assignments:', error);
     } finally {
@@ -124,6 +147,14 @@ const Assignments = () => {
       setSubmissions(response.data);
     } catch (error) {
       console.error('Error fetching submissions:', error);
+    }
+  };
+
+  const refreshAssignments = () => {
+    if (user?.role === 'teacher') {
+      fetchTeacherAssignments();
+    } else {
+      fetchStudentAssignments();
     }
   };
 
@@ -167,7 +198,11 @@ const Assignments = () => {
       });
       fetchTeacherAssignments();
     } catch (error) {
-      toast.error('Failed to create assignment');
+      if (error.response?.status === 403) {
+        toast.error('Please complete your teacher profile first in Staff Portal');
+      } else {
+        toast.error('Failed to create assignment');
+      }
     }
   };
 
@@ -232,12 +267,12 @@ const Assignments = () => {
       setShowEditModal(false);
       fetchTeacherAssignments();
     } catch (error) {
-      toast.error('Failed to update assignment');
+      toast.error(error.response?.data?.error || 'Failed to update assignment');
     }
   };
 
   const handleDeleteAssignment = async (assignmentId) => {
-    if (!window.confirm('Are you sure you want to delete this assignment?')) return;
+    if (!window.confirm('Are you sure you want to delete this assignment? This cannot be undone.')) return;
     
     const token = localStorage.getItem('token');
     try {
@@ -247,7 +282,7 @@ const Assignments = () => {
       toast.success('Assignment deleted successfully!');
       fetchTeacherAssignments();
     } catch (error) {
-      toast.error('Failed to delete assignment');
+      toast.error(error.response?.data?.error || 'Failed to delete assignment');
     }
   };
 
@@ -260,10 +295,20 @@ const Assignments = () => {
     document.body.removeChild(link);
   };
 
+  const handleViewAssignment = (assignmentId) => {
+    setSelectedAssignment(assignments.find(a => a.id === assignmentId));
+    setShowViewModal(true);
+  };
+
   const handleSubmitAssignment = async (assignmentId) => {
     setSelectedAssignment(assignments.find(a => a.id === assignmentId));
     setSubmissionForm({ submission_text: '', file: null });
     setShowSubmitModal(true);
+  };
+
+  const handleViewMySubmission = (assignmentId) => {
+    setSelectedAssignment(assignments.find(a => a.id === assignmentId));
+    setShowMySubmissionModal(true);
   };
 
   const handleConfirmSubmission = async (e) => {
@@ -369,15 +414,13 @@ const Assignments = () => {
                     </div>
                   </div>
 
-                  {assignment.file_path && (
-                    <button
-                      onClick={() => handleDownload(assignment.file_path)}
-                      className="w-full mb-3 flex items-center justify-center px-4 py-2 border border-blue-800 text-blue-800 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-                    >
-                      <DownloadIcon className="h-4 w-4 mr-2" />
-                      Download Attachment
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleViewAssignment(assignment.id)}
+                    className="w-full mb-3 flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                  >
+                    <EyeIcon className="h-4 w-4 mr-2" />
+                    View Assignment
+                  </button>
 
                   {user?.role === 'teacher' && (
                     <div className="flex space-x-2">
@@ -394,12 +437,14 @@ const Assignments = () => {
                       <button
                         onClick={() => handleEditAssignment(assignment)}
                         className="flex items-center justify-center px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                        title="Edit assignment"
                       >
                         <PencilIcon className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteAssignment(assignment.id)}
                         className="flex items-center justify-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                        title="Delete assignment"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>
@@ -407,13 +452,36 @@ const Assignments = () => {
                   )}
 
                   {user?.role === 'student' && (
-                    <button
-                      onClick={() => handleSubmitAssignment(assignment.id)}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
-                    >
-                      <UploadIcon className="h-4 w-4 mr-2" />
-                      Submit Assignment
-                    </button>
+                    mySubmissions[assignment.id] ? (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => handleViewMySubmission(assignment.id)}
+                          className="w-full flex items-center justify-center px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-900 transition-colors text-sm font-medium"
+                        >
+                          <CheckCircleIcon className="h-4 w-4 mr-2" />
+                          View Submission
+                        </button>
+                        <span className={`block text-center text-xs font-medium px-2 py-1 rounded ${
+                          mySubmissions[assignment.id].status === 'approved' ? 'bg-green-100 text-green-800' :
+                          mySubmissions[assignment.id].status === 'rejected' ? 'bg-red-100 text-red-800' :
+                          mySubmissions[assignment.id].status === 'graded' ? 'bg-blue-100 text-blue-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}>
+                          {mySubmissions[assignment.id].status === 'approved' ? '✓ Approved' :
+                           mySubmissions[assignment.id].status === 'rejected' ? '✗ Changes Requested' :
+                           mySubmissions[assignment.id].status === 'graded' ? `Graded: ${mySubmissions[assignment.id].grade}` :
+                           'Submitted'}
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleSubmitAssignment(assignment.id)}
+                        className="w-full flex items-center justify-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
+                      >
+                        <UploadIcon className="h-4 w-4 mr-2" />
+                        Submit Assignment
+                      </button>
+                    )
                   )}
                 </div>
               </div>
@@ -421,6 +489,110 @@ const Assignments = () => {
           </div>
         )}
       </div>
+
+      {/* View Assignment Modal (read-only, for anyone) */}
+      {showViewModal && selectedAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">{selectedAssignment.title}</h2>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XIcon className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                  {selectedAssignment.subject_name || 'Subject'}
+                </span>
+                <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                  {selectedAssignment.class_level}
+                </span>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  selectedAssignment.stream === 'science' ? 'bg-blue-100 text-blue-800' :
+                  selectedAssignment.stream === 'art' ? 'bg-purple-100 text-purple-800' :
+                  'bg-green-100 text-green-800'
+                }`}>
+                  {selectedAssignment.stream}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-500">Teacher</p>
+                  <p className="font-medium text-gray-800">{selectedAssignment.teacher_name || 'Teacher'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Due Date</p>
+                  <p className="font-medium text-gray-800">
+                    {new Date(selectedAssignment.due_date).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Total Marks</p>
+                  <p className="font-medium text-gray-800">{selectedAssignment.total_marks}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-gray-500 text-sm mb-1">Description</p>
+                <p className="text-gray-800 whitespace-pre-wrap">{selectedAssignment.description || 'No description provided.'}</p>
+              </div>
+
+              {selectedAssignment.file_path && (
+                <button
+                  onClick={() => handleDownload(selectedAssignment.file_path)}
+                  className="flex items-center justify-center w-full px-4 py-2 border border-blue-800 text-blue-800 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
+                >
+                  <DownloadIcon className="h-4 w-4 mr-2" />
+                  Download Attachment
+                </button>
+              )}
+
+              {user?.role === 'student' && !mySubmissions[selectedAssignment.id] && (
+                <button
+                  onClick={() => {
+                    setShowViewModal(false);
+                    handleSubmitAssignment(selectedAssignment.id);
+                  }}
+                  className="w-full flex items-center justify-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
+                >
+                  <UploadIcon className="h-4 w-4 mr-2" />
+                  Submit This Assignment
+                </button>
+              )}
+
+              {user?.role === 'teacher' && (
+                <div className="flex space-x-2 pt-2 border-t border-gray-200">
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleEditAssignment(selectedAssignment);
+                    }}
+                    className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                  >
+                    <PencilIcon className="h-4 w-4 mr-2" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleDeleteAssignment(selectedAssignment.id);
+                    }}
+                    className="flex-1 flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                  >
+                    <TrashIcon className="h-4 w-4 mr-2" />
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Assignment Modal */}
       {showCreateModal && (
@@ -924,6 +1096,108 @@ const Assignments = () => {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* My Submission Modal (for students) */}
+      {showMySubmissionModal && selectedAssignment && mySubmissions[selectedAssignment.id] && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">My Submission</h2>
+              <button
+                onClick={() => setShowMySubmissionModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XIcon className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <h3 className="font-semibold text-gray-800 mb-2">{selectedAssignment.title}</h3>
+                <p className="text-sm text-gray-600">{selectedAssignment.description}</p>
+              </div>
+              
+              <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                <h4 className="font-semibold text-blue-800 mb-2">Your Answer</h4>
+                {mySubmissions[selectedAssignment.id].submission_text && (
+                  <p className="text-gray-700">{mySubmissions[selectedAssignment.id].submission_text}</p>
+                )}
+                {mySubmissions[selectedAssignment.id].file_path && (
+                  <button
+                    onClick={() => handleDownload(mySubmissions[selectedAssignment.id].file_path)}
+                    className="mt-2 flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                  >
+                    <DownloadIcon className="h-4 w-4 mr-1" />
+                    Download Your Submission
+                  </button>
+                )}
+              </div>
+              
+              {mySubmissions[selectedAssignment.id].status !== 'submitted' && (
+                <div className={`p-4 rounded-lg ${
+                  mySubmissions[selectedAssignment.id].status === 'approved' ? 'bg-green-50' :
+                  mySubmissions[selectedAssignment.id].status === 'rejected' ? 'bg-red-50' :
+                  mySubmissions[selectedAssignment.id].status === 'failed' ? 'bg-red-50' :
+                  'bg-blue-50'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`font-semibold ${
+                      mySubmissions[selectedAssignment.id].status === 'approved' ? 'text-green-800' :
+                      mySubmissions[selectedAssignment.id].status === 'rejected' ? 'text-red-800' :
+                      mySubmissions[selectedAssignment.id].status === 'failed' ? 'text-red-800' :
+                      'text-blue-800'
+                    }`}>
+                      Status: {mySubmissions[selectedAssignment.id].status.charAt(0).toUpperCase() + mySubmissions[selectedAssignment.id].status.slice(1)}
+                    </span>
+                    {mySubmissions[selectedAssignment.id].grade && (
+                      <span className={`font-bold ${
+                        mySubmissions[selectedAssignment.id].status === 'approved' ? 'text-green-800' :
+                        mySubmissions[selectedAssignment.id].status === 'rejected' ? 'text-red-800' :
+                        mySubmissions[selectedAssignment.id].status === 'failed' ? 'text-red-800' :
+                        'text-blue-800'
+                      }`}>
+                        Grade: {mySubmissions[selectedAssignment.id].grade}
+                      </span>
+                    )}
+                  </div>
+                  {mySubmissions[selectedAssignment.id].marks && (
+                    <p className={`text-sm ${
+                      mySubmissions[selectedAssignment.id].status === 'approved' ? 'text-green-700' :
+                      mySubmissions[selectedAssignment.id].status === 'rejected' ? 'text-red-700' :
+                      mySubmissions[selectedAssignment.id].status === 'failed' ? 'text-red-700' :
+                      'text-blue-700'
+                    }`}>
+                      Marks: {mySubmissions[selectedAssignment.id].marks} / {selectedAssignment.total_marks}
+                    </p>
+                  )}
+                  {mySubmissions[selectedAssignment.id].feedback && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className={`text-sm ${
+                        mySubmissions[selectedAssignment.id].status === 'approved' ? 'text-green-700' :
+                        mySubmissions[selectedAssignment.id].status === 'rejected' ? 'text-red-700' :
+                        mySubmissions[selectedAssignment.id].status === 'failed' ? 'text-red-700' :
+                        'text-blue-700'
+                      }`}>
+                        <strong>Feedback:</strong> {mySubmissions[selectedAssignment.id].feedback}
+                      </p>
+                    </div>
+                  )}
+                  {mySubmissions[selectedAssignment.id].status === 'rejected' && (
+                    <button
+                      onClick={() => {
+                        setShowMySubmissionModal(false);
+                        handleSubmitAssignment(selectedAssignment.id);
+                      }}
+                      className="mt-3 w-full px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
+                    >
+                      Resubmit Assignment
+                    </button>
+                  )}
                 </div>
               )}
             </div>
