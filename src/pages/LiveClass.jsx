@@ -1,4 +1,8 @@
+<<<<<<< HEAD
+import { useState, useEffect, useRef } from 'react';
+=======
 import { useState, useEffect, useRef, useCallback } from 'react';
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
 import {
   VideoCameraIcon,
   MicrophoneIcon,
@@ -12,9 +16,15 @@ import {
   CheckIcon
 } from '@heroicons/react/outline';
 import io from 'socket.io-client';
+<<<<<<< HEAD
+import axios from 'axios';
+import { Room, RoomEvent, Track } from 'livekit-client';
+import { API_BASE_URL } from '../config/api';
+=======
 import { Room, RoomEvent } from 'livekit-client';
 import { API_BASE_URL } from '../config/api';
 import toast from 'react-hot-toast';
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
 
 const LiveClass = () => {
   const authToken = localStorage.getItem('token');
@@ -30,11 +40,21 @@ const LiveClass = () => {
   const [showChat, setShowChat] = useState(true);
   const [chatMessages, setChatMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
+<<<<<<< HEAD
+  const [sessionId, setSessionId] = useState('');
+=======
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
   const [showPolls, setShowPolls] = useState(false);
   const [polls, setPolls] = useState([]);
   const [showCreatePoll, setShowCreatePoll] = useState(false);
   const [newPoll, setNewPoll] = useState({ question: '', options: ['', ''] });
   const [raisedHands, setRaisedHands] = useState([]);
+<<<<<<< HEAD
+  const [remoteTracks, setRemoteTracks] = useState({});
+  const localVideoRef = useRef(null);
+  const socketRef = useRef(null);
+  const roomRef = useRef(null);
+=======
   const [tiles, setTiles] = useState([]); // people currently on camera: { identity, name, isLocal, videoEl }
   const [viewerCount, setViewerCount] = useState(0);
   const [participants, setParticipants] = useState([]); // everyone in the room, on camera or not
@@ -56,6 +76,7 @@ const LiveClass = () => {
   const socketRef = useRef(null);
   const roomRef = useRef(null);
   const videoContainerRefs = useRef({});
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
 
   useEffect(() => {
     socketRef.current = io(API_BASE_URL);
@@ -76,6 +97,85 @@ const LiveClass = () => {
       );
     });
 
+<<<<<<< HEAD
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      if (roomRef.current) {
+        roomRef.current.disconnect();
+        roomRef.current = null;
+      }
+    };
+  }, []);
+
+  const joinSession = async () => {
+    if (!sessionId || !socketRef.current) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('You must be logged in to join a live class.');
+      return;
+    }
+
+    try {
+      const { data } = await axios.post(`${API_BASE_URL}/api/livekit/token`,
+        { session_id: sessionId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const room = new Room();
+      roomRef.current = room;
+
+      room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        setRemoteTracks((prev) => ({
+          ...prev,
+          [publication.trackSid]: {
+            sid: publication.trackSid,
+            kind: track.kind,
+            track,
+            participantIdentity: participant.identity,
+            participantName: participant.name || participant.identity
+          }
+        }));
+      });
+
+      room.on(RoomEvent.TrackUnsubscribed, (_track, publication) => {
+        setRemoteTracks((prev) => {
+          const next = { ...prev };
+          delete next[publication.trackSid];
+          return next;
+        });
+      });
+
+      room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+        setRemoteTracks((prev) => {
+          const next = { ...prev };
+          Object.keys(next).forEach((key) => {
+            if (next[key].participantIdentity === participant.identity) delete next[key];
+          });
+          return next;
+        });
+      });
+
+      room.on(RoomEvent.LocalTrackPublished, (publication) => {
+        if (publication.kind === Track.Kind.Video && publication.videoTrack && localVideoRef.current) {
+          publication.videoTrack.attach(localVideoRef.current);
+        }
+      });
+
+      await room.connect(data.url, data.token);
+      socketRef.current.emit('join-session', sessionId);
+
+      await room.localParticipant.setCameraEnabled(true);
+      await room.localParticipant.setMicrophoneEnabled(true);
+    } catch (error) {
+      console.error('Error joining video session:', error);
+      alert('Could not join the video session: ' + (error.response?.data?.error || error.message));
+      if (roomRef.current) {
+        roomRef.current.disconnect();
+        roomRef.current = null;
+=======
     return () => socketRef.current?.disconnect();
   }, []);
 
@@ -181,6 +281,7 @@ const LiveClass = () => {
           console.error('Could not enable camera/mic:', mediaError);
           toast.error('Camera/microphone access was blocked. Check your browser\'s site permissions and try the camera button again.');
         }
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
       }
 
       // The server can live-upgrade a promoted student's permissions without
@@ -216,6 +317,10 @@ const LiveClass = () => {
   };
 
   const leaveSession = () => {
+<<<<<<< HEAD
+    if (sessionId && socketRef.current) {
+      socketRef.current.emit('leave-session', sessionId);
+=======
     roomRef.current?.disconnect();
     roomRef.current = null;
     if (sessionId) socketRef.current.emit('leave-session', `class_${sessionId}`);
@@ -232,9 +337,40 @@ const LiveClass = () => {
     } catch (error) {
       console.error('Could not toggle microphone:', error);
       toast.error('Microphone access was blocked by the browser.');
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
     }
+
+    if (roomRef.current) {
+      roomRef.current.disconnect();
+      roomRef.current = null;
+    }
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+
+    setSessionId('');
+    setRemoteTracks({});
+    setIsMuted(false);
+    setIsVideoOff(false);
+    setIsScreenSharing(false);
   };
 
+<<<<<<< HEAD
+  const toggleMute = async () => {
+    if (!roomRef.current) return;
+    await roomRef.current.localParticipant.setMicrophoneEnabled(isMuted);
+    setIsMuted(!isMuted);
+  };
+
+  const toggleVideo = async () => {
+    if (!roomRef.current) return;
+    await roomRef.current.localParticipant.setCameraEnabled(isVideoOff);
+    setIsVideoOff(!isVideoOff);
+  };
+
+  const toggleScreenShare = async () => {
+    if (!roomRef.current) return;
+=======
   const toggleVideo = async () => {
     if (!roomRef.current || !canPublish) return;
     try {
@@ -248,6 +384,7 @@ const LiveClass = () => {
 
   const toggleScreenShare = async () => {
     if (!roomRef.current || !canPublish) return;
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
     try {
       await roomRef.current.localParticipant.setScreenShareEnabled(!isScreenSharing);
       setIsScreenSharing(!isScreenSharing);
@@ -375,6 +512,13 @@ const LiveClass = () => {
           {isConnected && <span className="px-3 py-1 bg-green-600 rounded-full text-sm">Live</span>}
         </div>
         <div className="flex items-center space-x-4">
+<<<<<<< HEAD
+          <div className="flex items-center">
+            <UsersIcon className="h-5 w-5 mr-2" />
+            <span>{new Set(Object.values(remoteTracks).map((t) => t.participantIdentity)).size + (sessionId ? 1 : 0)}</span>
+          </div>
+          {sessionId && (
+=======
           {isConnected && (
             <button onClick={() => setShowParticipants(!showParticipants)} className="flex items-center hover:bg-gray-700 rounded-lg px-2 py-1" title="Participants">
               <UsersIcon className="h-5 w-5 mr-2" />
@@ -382,6 +526,7 @@ const LiveClass = () => {
             </button>
           )}
           {isConnected && (
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
             <>
               <button onClick={() => setShowPolls(!showPolls)} className="p-2 hover:bg-gray-700 rounded-lg relative" title="Polls">
                 <span className="text-white font-semibold">📊</span>
@@ -409,6 +554,18 @@ const LiveClass = () => {
           {!isConnected ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="bg-gray-800 rounded-xl p-8 max-w-md w-full">
+<<<<<<< HEAD
+                <h2 className="text-2xl font-bold text-white mb-4 text-center">
+                  Join a Class Session
+                </h2>
+                <input
+                  type="text"
+                  placeholder="Enter Video Session ID"
+                  value={sessionId}
+                  onChange={(e) => setSessionId(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+=======
                 <h2 className="text-2xl font-bold text-white mb-4 text-center">Join a Class Session</h2>
 
                 {justCreatedMeetingId && (
@@ -431,6 +588,7 @@ const LiveClass = () => {
                   </div>
                 )}
 
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
                 <button
                   onClick={() => setShowCreateSession(true)}
                   className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold mb-2"
@@ -470,6 +628,46 @@ const LiveClass = () => {
               </div>
             </div>
           ) : (
+<<<<<<< HEAD
+            <>
+              {/* Remote participants */}
+              <div className="flex-1 bg-black relative p-2 grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gridAutoRows: '1fr' }}>
+                {Object.values(remoteTracks).filter((t) => t.kind === 'video').length === 0 ? (
+                  <div className="flex items-center justify-center text-gray-400">
+                    Waiting for others to join...
+                  </div>
+                ) : (
+                  Object.values(remoteTracks).filter((t) => t.kind === 'video').map((t) => (
+                    <div key={t.sid} className="relative bg-gray-900 rounded-lg overflow-hidden">
+                      <video
+                        ref={(el) => { if (el) t.track.attach(el); }}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
+                        {t.participantName}
+                      </div>
+                    </div>
+                  ))
+                )}
+                {Object.values(remoteTracks).filter((t) => t.kind === 'audio').map((t) => (
+                  <audio key={t.sid} ref={(el) => { if (el) t.track.attach(el); }} autoPlay />
+                ))}
+              </div>
+
+              {/* Local Video (Self) */}
+              <div className="absolute bottom-4 right-4 w-48 h-36 bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
+                  You
+=======
             <div
               className="flex-1 bg-black p-4 grid gap-4"
               style={{ gridTemplateColumns: `repeat(${Math.min(tiles.length || 1, 4)}, 1fr)` }}
@@ -488,6 +686,7 @@ const LiveClass = () => {
                   <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
                     {tile.isLocal ? 'You' : tile.name}
                   </div>
+>>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
                 </div>
               ))}
             </div>
