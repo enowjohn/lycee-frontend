@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import {
   AcademicCapIcon,
@@ -45,20 +46,45 @@ const StudentPortal = () => {
   });
   const [submittingProfile, setSubmittingProfile] = useState(false);
 
+  const socketRef = useRef(null);
+
   useEffect(() => {
     fetchStudentData();
   }, []);
+
+  // Real-time: the moment a teacher in this student's class level goes
+  // live, flip that session to "live" in the list immediately and toast,
+  // instead of only finding out on the next manual refresh.
+  useEffect(() => {
+    if (!studentData?.class_level) return;
+
+    socketRef.current = io(API_BASE_URL);
+    socketRef.current.emit('join_class', studentData.class_level);
+
+    socketRef.current.on('session-live', (data) => {
+      toast.success(`${data.title} is live now!`, { duration: 6000 });
+      setUpcomingClasses(prev =>
+        prev.map(session =>
+          session.meeting_id === data.meetingId ? { ...session, status: 'live' } : session
+        )
+      );
+    });
+
+    return () => socketRef.current?.disconnect();
+  }, [studentData?.class_level]);
 
   const fetchStudentData = async () => {
     try {
       const token = localStorage.getItem('token');
 
       // Check if student profile exists
+      let student;
       try {
         const studentRes = await axios.get(`${API_BASE_URL}/api/students/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setStudentData(studentRes.data);
+        student = studentRes.data;
+        setStudentData(student);
       } catch (error) {
         if (error.response?.status === 404) {
           // No profile exists, show profile form
@@ -70,7 +96,9 @@ const StudentPortal = () => {
       }
 
       const [gradesRes, sessionsRes, assignmentsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/marks/student/1`, {
+        // Use this student's own id, not a hardcoded "1" — every student
+        // was previously seeing student-1's grades.
+        axios.get(`${API_BASE_URL}/api/marks/student/${student.id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         }),
         axios.get(`${API_BASE_URL}/api/video-sessions`, {
@@ -421,8 +449,14 @@ const StudentPortal = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Link
             to="/live-class"
-            className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
+            className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer relative"
           >
+            {upcomingClasses.some(s => s.status === 'live') && (
+              <span className="absolute top-3 right-3 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+              </span>
+            )}
             <div className="flex items-center mb-4">
               <VideoCameraIcon className="h-8 w-8 text-blue-800 mr-3" />
               <h3 className="font-semibold text-gray-800">Join Live Class</h3>
@@ -476,16 +510,25 @@ const StudentPortal = () => {
                   {upcomingClasses.slice(0, 5).map((session) => (
                     <div key={session.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-800">{session.title}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-800">{session.title}</p>
+                          {session.status === 'live' && (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 bg-red-600 rounded-full"></span> LIVE
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-600">
                           {new Date(session.scheduled_date).toLocaleString()}
                         </p>
                       </div>
                       <Link
-                        to="/live-class"
-                        className="px-3 py-1 bg-blue-800 text-white rounded-lg text-sm hover:bg-blue-900"
+                        to={`/live-class?meetingId=${session.meeting_id}`}
+                        className={`px-3 py-1 rounded-lg text-sm text-white ${
+                          session.status === 'live' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-800 hover:bg-blue-900'
+                        }`}
                       >
-                        Join
+                        {session.status === 'live' ? 'Join Now' : 'Join'}
                       </Link>
                     </div>
                   ))}

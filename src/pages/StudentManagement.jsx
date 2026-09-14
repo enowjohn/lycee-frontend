@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { SearchIcon, PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/outline';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../config/api';
 
 const StudentManagement = () => {
   const [students, setStudents] = useState([]);
@@ -32,7 +33,7 @@ const StudentManagement = () => {
   const fetchStudents = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/students', {
+      const response = await axios.get(`${API_BASE_URL}/api/students`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { search: searchTerm, stream: filterStream, class_level: filterClass }
       });
@@ -47,12 +48,12 @@ const StudentManagement = () => {
     try {
       const token = localStorage.getItem('token');
       if (editingStudent) {
-        await axios.put(`http://localhost:5000/api/students/${editingStudent.id}`, formData, {
+        await axios.put(`${API_BASE_URL}/api/students/${editingStudent.id}`, formData, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Student updated successfully');
       } else {
-        await axios.post('http://localhost:5000/api/students', formData, {
+        await axios.post(`${API_BASE_URL}/api/students`, formData, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Student added successfully');
@@ -88,7 +89,7 @@ const StudentManagement = () => {
     if (window.confirm('Are you sure you want to delete this student?')) {
       try {
         const token = localStorage.getItem('token');
-        await axios.delete(`http://localhost:5000/api/students/${id}`, {
+        await axios.delete(`${API_BASE_URL}/api/students/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Student deleted successfully');

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import jsPDF from 'jspdf';
 import { DownloadIcon, PrinterIcon } from '@heroicons/react/outline';
+import { API_BASE_URL } from '../config/api';
 
 const ReportCard = () => {
   const [selectedStudent, setSelectedStudent] = useState('');
@@ -24,14 +25,14 @@ const ReportCard = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/marks/student/${selectedStudent}`, {
+      const response = await axios.get(`${API_BASE_URL}/api/marks/student/${selectedStudent}`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { term: selectedTerm, year: selectedYear }
       });
       setMarks(response.data);
       
       // Fetch student info
-      const studentResponse = await axios.get(`http://localhost:5000/api/students`, {
+      const studentResponse = await axios.get(`${API_BASE_URL}/api/students`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const student = studentResponse.data.find(s => s.id === parseInt(selectedStudent));

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { UserIcon, AcademicCapIcon, CalendarIcon, CurrencyDollarIcon } from '@heroicons/react/outline';
+import { API_BASE_URL } from '../config/api';
 
 const ParentPortal = () => {
   const [childData, setChildData] = useState(null);
@@ -21,10 +22,10 @@ const ParentPortal = () => {
       const studentId = 1; // This would come from the parent's profile
       
       const [gradesRes, feesRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/marks/student/${studentId}`, {
+        axios.get(`${API_BASE_URL}/api/marks/student/${studentId}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get(`http://localhost:5000/api/fees/student/${studentId}`, {
+        axios.get(`${API_BASE_URL}/api/fees/student/${studentId}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);

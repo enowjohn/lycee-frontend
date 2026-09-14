@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { useState, useEffect, useRef } from 'react';
-=======
 import { useState, useEffect, useRef, useCallback } from 'react';
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
 import {
   VideoCameraIcon,
   MicrophoneIcon,
@@ -16,20 +12,17 @@ import {
   CheckIcon
 } from '@heroicons/react/outline';
 import io from 'socket.io-client';
-<<<<<<< HEAD
 import axios from 'axios';
 import { Room, RoomEvent, Track } from 'livekit-client';
-import { API_BASE_URL } from '../config/api';
-=======
-import { Room, RoomEvent } from 'livekit-client';
+import { useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../config/api';
 import toast from 'react-hot-toast';
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
 
 const LiveClass = () => {
   const authToken = localStorage.getItem('token');
   const currentUserId = localStorage.getItem('userId') || 'user';
-  const [sessionId, setSessionId] = useState('');
+  const [searchParams] = useSearchParams();
+  const [sessionId, setSessionId] = useState(searchParams.get('meetingId') || '');
   const [isConnected, setIsConnected] = useState(false);
   const [isTeacher, setIsTeacher] = useState(false);
   const [canPublish, setCanPublish] = useState(false);
@@ -40,21 +33,12 @@ const LiveClass = () => {
   const [showChat, setShowChat] = useState(true);
   const [chatMessages, setChatMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
-<<<<<<< HEAD
-  const [sessionId, setSessionId] = useState('');
-=======
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
   const [showPolls, setShowPolls] = useState(false);
   const [polls, setPolls] = useState([]);
   const [showCreatePoll, setShowCreatePoll] = useState(false);
   const [newPoll, setNewPoll] = useState({ question: '', options: ['', ''] });
   const [raisedHands, setRaisedHands] = useState([]);
-<<<<<<< HEAD
   const [remoteTracks, setRemoteTracks] = useState({});
-  const localVideoRef = useRef(null);
-  const socketRef = useRef(null);
-  const roomRef = useRef(null);
-=======
   const [tiles, setTiles] = useState([]); // people currently on camera: { identity, name, isLocal, videoEl }
   const [viewerCount, setViewerCount] = useState(0);
   const [participants, setParticipants] = useState([]); // everyone in the room, on camera or not
@@ -72,11 +56,13 @@ const LiveClass = () => {
   });
   const [justCreatedMeetingId, setJustCreatedMeetingId] = useState(null); // shown as a persistent card, not just a toast
   const [copied, setCopied] = useState(false);
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [liveAnnouncement, setLiveAnnouncement] = useState(null); // { meetingId, title } when a teacher in your class just went live
 
+  const localVideoRef = useRef(null);
   const socketRef = useRef(null);
   const roomRef = useRef(null);
   const videoContainerRefs = useRef({});
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
 
   useEffect(() => {
     socketRef.current = io(API_BASE_URL);
@@ -97,7 +83,32 @@ const LiveClass = () => {
       );
     });
 
-<<<<<<< HEAD
+    // Real-time "a teacher in your class just went live" — the backend
+    // broadcasts this to everyone in `class_<class_level>` the moment a
+    // teacher's session status flips to "live" in /api/livekit/join.
+    socketRef.current.on('session-live', (data) => {
+      setLiveAnnouncement(data);
+      toast.success(`${data.title} is live now!`, { duration: 6000 });
+    });
+
+    // Only students have a class_level to subscribe to — this silently
+    // no-ops (404) for teacher/admin accounts, which is fine.
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/students/me`, {
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+          const student = await res.json();
+          if (student.class_level) {
+            socketRef.current.emit('join_class', student.class_level);
+          }
+        }
+      } catch (error) {
+        console.error('Could not subscribe to class live-notifications:', error);
+      }
+    })();
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -107,76 +118,6 @@ const LiveClass = () => {
         roomRef.current = null;
       }
     };
-  }, []);
-
-  const joinSession = async () => {
-    if (!sessionId || !socketRef.current) return;
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('You must be logged in to join a live class.');
-      return;
-    }
-
-    try {
-      const { data } = await axios.post(`${API_BASE_URL}/api/livekit/token`,
-        { session_id: sessionId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const room = new Room();
-      roomRef.current = room;
-
-      room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        setRemoteTracks((prev) => ({
-          ...prev,
-          [publication.trackSid]: {
-            sid: publication.trackSid,
-            kind: track.kind,
-            track,
-            participantIdentity: participant.identity,
-            participantName: participant.name || participant.identity
-          }
-        }));
-      });
-
-      room.on(RoomEvent.TrackUnsubscribed, (_track, publication) => {
-        setRemoteTracks((prev) => {
-          const next = { ...prev };
-          delete next[publication.trackSid];
-          return next;
-        });
-      });
-
-      room.on(RoomEvent.ParticipantDisconnected, (participant) => {
-        setRemoteTracks((prev) => {
-          const next = { ...prev };
-          Object.keys(next).forEach((key) => {
-            if (next[key].participantIdentity === participant.identity) delete next[key];
-          });
-          return next;
-        });
-      });
-
-      room.on(RoomEvent.LocalTrackPublished, (publication) => {
-        if (publication.kind === Track.Kind.Video && publication.videoTrack && localVideoRef.current) {
-          publication.videoTrack.attach(localVideoRef.current);
-        }
-      });
-
-      await room.connect(data.url, data.token);
-      socketRef.current.emit('join-session', sessionId);
-
-      await room.localParticipant.setCameraEnabled(true);
-      await room.localParticipant.setMicrophoneEnabled(true);
-    } catch (error) {
-      console.error('Error joining video session:', error);
-      alert('Could not join the video session: ' + (error.response?.data?.error || error.message));
-      if (roomRef.current) {
-        roomRef.current.disconnect();
-        roomRef.current = null;
-=======
-    return () => socketRef.current?.disconnect();
   }, []);
 
   // Render a LiveKit video track — local OR remote — into its tile once
@@ -281,7 +222,6 @@ const LiveClass = () => {
           console.error('Could not enable camera/mic:', mediaError);
           toast.error('Camera/microphone access was blocked. Check your browser\'s site permissions and try the camera button again.');
         }
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
       }
 
       // The server can live-upgrade a promoted student's permissions without
@@ -317,16 +257,20 @@ const LiveClass = () => {
   };
 
   const leaveSession = () => {
-<<<<<<< HEAD
-    if (sessionId && socketRef.current) {
-      socketRef.current.emit('leave-session', sessionId);
-=======
     roomRef.current?.disconnect();
     roomRef.current = null;
     if (sessionId) socketRef.current.emit('leave-session', `class_${sessionId}`);
     setIsConnected(false);
     setTiles([]);
     setParticipants([]);
+    setRemoteTracks({});
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    setSessionId('');
+    setIsMuted(false);
+    setIsVideoOff(false);
+    setIsScreenSharing(false);
   };
 
   const toggleMute = async () => {
@@ -337,40 +281,9 @@ const LiveClass = () => {
     } catch (error) {
       console.error('Could not toggle microphone:', error);
       toast.error('Microphone access was blocked by the browser.');
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
     }
-
-    if (roomRef.current) {
-      roomRef.current.disconnect();
-      roomRef.current = null;
-    }
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = null;
-    }
-
-    setSessionId('');
-    setRemoteTracks({});
-    setIsMuted(false);
-    setIsVideoOff(false);
-    setIsScreenSharing(false);
   };
 
-<<<<<<< HEAD
-  const toggleMute = async () => {
-    if (!roomRef.current) return;
-    await roomRef.current.localParticipant.setMicrophoneEnabled(isMuted);
-    setIsMuted(!isMuted);
-  };
-
-  const toggleVideo = async () => {
-    if (!roomRef.current) return;
-    await roomRef.current.localParticipant.setCameraEnabled(isVideoOff);
-    setIsVideoOff(!isVideoOff);
-  };
-
-  const toggleScreenShare = async () => {
-    if (!roomRef.current) return;
-=======
   const toggleVideo = async () => {
     if (!roomRef.current || !canPublish) return;
     try {
@@ -384,7 +297,6 @@ const LiveClass = () => {
 
   const toggleScreenShare = async () => {
     if (!roomRef.current || !canPublish) return;
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
     try {
       await roomRef.current.localParticipant.setScreenShareEnabled(!isScreenSharing);
       setIsScreenSharing(!isScreenSharing);
@@ -445,10 +357,24 @@ const LiveClass = () => {
       setShowSessionList(true);
     } catch (error) {
       console.error('Error fetching sessions:', error);
+      toast.error('Could not load sessions.');
     }
   };
 
   const createSession = async () => {
+    // Validate on the client first — scheduled_date is NOT NULL on the
+    // backend, so an empty value there previously caused a silent-looking
+    // 500 with no clear feedback.
+    if (!newSession.title.trim()) {
+      toast.error('Please enter a title.');
+      return;
+    }
+    if (!newSession.scheduled_date) {
+      toast.error('Please choose a scheduled date.');
+      return;
+    }
+
+    setCreatingSession(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/video-sessions`, {
         method: 'POST',
@@ -477,7 +403,9 @@ const LiveClass = () => {
       }
     } catch (error) {
       console.error('Error creating session:', error);
-      toast.error('Failed to create session');
+      toast.error('Failed to create session — check your connection.');
+    } finally {
+      setCreatingSession(false);
     }
   };
 
@@ -520,7 +448,7 @@ const LiveClass = () => {
           {sessionId && (
 =======
           {isConnected && (
-            <button onClick={() => setShowParticipants(!showParticipants)} className="flex items-center hover:bg-gray-700 rounded-lg px-2 py-1" title="Participants">
+            <button type="button" onClick={() => setShowParticipants(!showParticipants)} className="flex items-center hover:bg-gray-700 rounded-lg px-2 py-1" title="Participants">
               <UsersIcon className="h-5 w-5 mr-2" />
               <span>{viewerCount}</span>
             </button>
@@ -528,7 +456,7 @@ const LiveClass = () => {
           {isConnected && (
 >>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
             <>
-              <button onClick={() => setShowPolls(!showPolls)} className="p-2 hover:bg-gray-700 rounded-lg relative" title="Polls">
+              <button type="button" onClick={() => setShowPolls(!showPolls)} className="p-2 hover:bg-gray-700 rounded-lg relative" title="Polls">
                 <span className="text-white font-semibold">📊</span>
                 {polls.length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
@@ -537,13 +465,13 @@ const LiveClass = () => {
                 )}
               </button>
               {isTeacher && (
-                <button onClick={() => setShowCreatePoll(true)} className="p-2 hover:bg-gray-700 rounded-lg" title="Create Poll">
+                <button type="button" onClick={() => setShowCreatePoll(true)} className="p-2 hover:bg-gray-700 rounded-lg" title="Create Poll">
                   <span className="text-white font-semibold">➕</span>
                 </button>
               )}
             </>
           )}
-          <button onClick={() => setShowChat(!showChat)} className="p-2 hover:bg-gray-700 rounded-lg">
+          <button type="button" onClick={() => setShowChat(!showChat)} className="p-2 hover:bg-gray-700 rounded-lg">
             {showChat ? <XIcon className="h-5 w-5" /> : <ChatIcon className="h-5 w-5" />}
           </button>
         </div>
@@ -568,6 +496,23 @@ const LiveClass = () => {
 =======
                 <h2 className="text-2xl font-bold text-white mb-4 text-center">Join a Class Session</h2>
 
+                {liveAnnouncement && (
+                  <div className="mb-4 p-4 bg-red-900 bg-opacity-40 border border-red-500 rounded-lg animate-pulse">
+                    <p className="text-red-300 text-xs font-medium mb-2 flex items-center">
+                      <span className="h-2 w-2 bg-red-500 rounded-full mr-2"></span>
+                      Live now
+                    </p>
+                    <p className="text-white font-semibold mb-3">{liveAnnouncement.title}</p>
+                    <button
+                      type="button"
+                      onClick={() => setSessionId(liveAnnouncement.meetingId)}
+                      className="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold text-sm"
+                    >
+                      Fill in Meeting ID
+                    </button>
+                  </div>
+                )}
+
                 {justCreatedMeetingId && (
                   <div className="mb-4 p-4 bg-green-900 bg-opacity-40 border border-green-600 rounded-lg">
                     <p className="text-green-300 text-xs font-medium mb-2">
@@ -578,6 +523,7 @@ const LiveClass = () => {
                         {justCreatedMeetingId}
                       </code>
                       <button
+                        type="button"
                         onClick={() => copyMeetingId(justCreatedMeetingId)}
                         className="p-2 bg-green-700 hover:bg-green-600 rounded-lg transition-colors flex-shrink-0"
                         title="Copy Meeting ID"
@@ -590,12 +536,14 @@ const LiveClass = () => {
 
 >>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
                 <button
+                  type="button"
                   onClick={() => setShowCreateSession(true)}
                   className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold mb-2"
                 >
                   Create New Session
                 </button>
                 <button
+                  type="button"
                   onClick={fetchAvailableSessions}
                   className="w-full py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-semibold mb-4"
                 >
@@ -613,6 +561,7 @@ const LiveClass = () => {
                   />
                   {sessionId && (
                     <button
+                      type="button"
                       onClick={() => copyMeetingId(sessionId)}
                       className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors flex-shrink-0"
                       title="Copy Meeting ID"
@@ -622,7 +571,7 @@ const LiveClass = () => {
                   )}
                 </div>
 
-                <button onClick={joinSession} className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                <button type="button" onClick={joinSession} className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
                   Join Session
                 </button>
               </div>
@@ -695,6 +644,7 @@ const LiveClass = () => {
           {isConnected && (
             <div className="bg-gray-800 px-4 py-3 flex items-center justify-center space-x-4">
               <button
+                type="button"
                 onClick={toggleMute}
                 disabled={!canPublish}
                 className={`p-3 rounded-full ${isMuted ? 'bg-red-600' : 'bg-gray-700'} hover:bg-gray-600 transition-colors disabled:opacity-40`}
@@ -702,6 +652,7 @@ const LiveClass = () => {
                 <MicrophoneIcon className="h-6 w-6 text-white" />
               </button>
               <button
+                type="button"
                 onClick={toggleVideo}
                 disabled={!canPublish}
                 className={`p-3 rounded-full ${isVideoOff ? 'bg-red-600' : 'bg-gray-700'} hover:bg-gray-600 transition-colors disabled:opacity-40`}
@@ -710,6 +661,7 @@ const LiveClass = () => {
               </button>
               {canPublish && (
                 <button
+                  type="button"
                   onClick={toggleScreenShare}
                   className={`p-3 rounded-full ${isScreenSharing ? 'bg-green-600' : 'bg-gray-700'} hover:bg-gray-600 transition-colors`}
                 >
@@ -718,13 +670,14 @@ const LiveClass = () => {
               )}
               {!isTeacher && (
                 <button
+                  type="button"
                   onClick={toggleHandRaise}
                   className={`p-3 rounded-full ${isHandRaised ? 'bg-amber-600' : 'bg-gray-700'} hover:bg-gray-600 transition-colors`}
                 >
                   <HandIcon className="h-6 w-6 text-white" />
                 </button>
               )}
-              <button onClick={leaveSession} className="p-3 rounded-full bg-red-600 hover:bg-red-700 transition-colors">
+              <button type="button" onClick={leaveSession} className="p-3 rounded-full bg-red-600 hover:bg-red-700 transition-colors">
                 <PhoneIcon className="h-6 w-6 text-white" />
               </button>
             </div>
@@ -781,7 +734,7 @@ const LiveClass = () => {
                   onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                   className="flex-1 px-3 py-2 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
-                <button onClick={sendMessage} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <button type="button" onClick={sendMessage} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                   Send
                 </button>
               </div>
@@ -806,6 +759,7 @@ const LiveClass = () => {
                         const percentage = totalResponses > 0 ? (responseCount / totalResponses) * 100 : 0;
                         return (
                           <button
+                            type="button"
                             key={index}
                             onClick={() => respondToPoll(poll.id, index)}
                             className="w-full text-left p-2 bg-gray-600 hover:bg-gray-500 rounded-lg transition-colors relative overflow-hidden"
@@ -831,7 +785,7 @@ const LiveClass = () => {
             <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
               <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="text-xl font-bold text-gray-800">Available Sessions</h3>
-                <button onClick={() => setShowSessionList(false)} className="text-gray-400 hover:text-gray-600">
+                <button type="button" onClick={() => setShowSessionList(false)} className="text-gray-400 hover:text-gray-600">
                   <XIcon className="h-6 w-6" />
                 </button>
               </div>
@@ -861,6 +815,7 @@ const LiveClass = () => {
                         <div className="flex items-center gap-2">
                           <code className="text-xs bg-gray-200 px-2 py-1 rounded flex-1">{session.meeting_id}</code>
                           <button
+                            type="button"
                             onClick={() => copyMeetingId(session.meeting_id)}
                             className="p-1.5 bg-gray-200 hover:bg-gray-300 rounded"
                             title="Copy Meeting ID"
@@ -868,6 +823,7 @@ const LiveClass = () => {
                             <ClipboardCopyIcon className="h-4 w-4 text-gray-700" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               setSessionId(session.meeting_id);
                               setShowSessionList(false);
@@ -886,12 +842,103 @@ const LiveClass = () => {
           </div>
         )}
 
+        {/* Create Session Modal */}
+        {showCreateSession && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full">
+              <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-800">Create New Session</h3>
+                <button type="button" onClick={() => setShowCreateSession(false)} className="text-gray-400 hover:text-gray-600">
+                  <XIcon className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={newSession.title}
+                      onChange={(e) => setNewSession({ ...newSession, title: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g., Physics Class"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea
+                      value={newSession.description}
+                      onChange={(e) => setNewSession({ ...newSession, description: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Session description"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Class Level</label>
+                    <select
+                      value={newSession.class_level}
+                      onChange={(e) => setNewSession({ ...newSession, class_level: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Form 1">Form 1</option>
+                      <option value="Form 2">Form 2</option>
+                      <option value="Form 3">Form 3</option>
+                      <option value="Form 4">Form 4</option>
+                      <option value="Form 5">Form 5</option>
+                      <option value="Lower Sixth">Lower Sixth</option>
+                      <option value="Upper Sixth">Upper Sixth</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Date</label>
+                    <input
+                      type="datetime-local"
+                      value={newSession.scheduled_date}
+                      onChange={(e) => setNewSession({ ...newSession, scheduled_date: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                    <input
+                      type="number"
+                      value={newSession.duration}
+                      onChange={(e) => setNewSession({ ...newSession, duration: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      min="15"
+                      max="180"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-4 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateSession(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={createSession}
+                    disabled={creatingSession}
+                    className="px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-900 transition-colors disabled:opacity-50"
+                  >
+                    {creatingSession ? 'Creating…' : 'Create Session'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showCreatePoll && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-md w-full">
               <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                 <h3 className="text-xl font-bold text-gray-800">Create Poll</h3>
-                <button onClick={() => setShowCreatePoll(false)} className="text-gray-400 hover:text-gray-600">
+                <button type="button" onClick={() => setShowCreatePoll(false)} className="text-gray-400 hover:text-gray-600">
                   <XIcon className="h-6 w-6" />
                 </button>
               </div>
@@ -925,6 +972,7 @@ const LiveClass = () => {
                         />
                       ))}
                       <button
+                        type="button"
                         onClick={addPollOption}
                         className="w-full py-2 border border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-500 transition-colors"
                       >
@@ -934,10 +982,10 @@ const LiveClass = () => {
                   </div>
                 </div>
                 <div className="flex justify-end space-x-4 mt-6">
-                  <button onClick={() => setShowCreatePoll(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                  <button type="button" onClick={() => setShowCreatePoll(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                     Cancel
                   </button>
-                  <button onClick={createPoll} className="px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-900 transition-colors">
+                  <button type="button" onClick={createPoll} className="px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-900 transition-colors">
                     Create Poll
                   </button>
                 </div>
@@ -956,7 +1004,7 @@ const LiveClass = () => {
               {raisedHands.map((hand, index) => (
                 <div key={index} className="flex items-center justify-between text-gray-300 text-xs gap-2">
                   <span>{hand.userName || `User ${hand.userId}`}</span>
-                  <button onClick={() => promoteStudent(hand.userId)} className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+                  <button type="button" onClick={() => promoteStudent(hand.userId)} className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
                     Promote
                   </button>
                 </div>
