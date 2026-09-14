@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://lycee-backends-4.onrender.com/api/:path*"
+    }
+  ]
+}

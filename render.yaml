@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: lycee-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://lycee-backends-4.onrender.com
