@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
-  VideoCameraIcon, 
-  MicrophoneIcon, 
-  PhoneIcon, 
+import {
+  VideoCameraIcon,
+  MicrophoneIcon,
+  PhoneIcon,
   DesktopComputerIcon,
   HandIcon,
   ChatIcon,
@@ -10,6 +10,9 @@ import {
   XIcon
 } from '@heroicons/react/outline';
 import io from 'socket.io-client';
+import axios from 'axios';
+import { Room, RoomEvent, Track } from 'livekit-client';
+import { API_BASE_URL } from '../config/api';
 
 const LiveClass = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -20,17 +23,16 @@ const LiveClass = () => {
   const [showChat, setShowChat] = useState(true);
   const [chatMessages, setChatMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
-  const [participants, setParticipants] = useState([]);
   const [sessionId, setSessionId] = useState('');
   const [showPolls, setShowPolls] = useState(false);
   const [polls, setPolls] = useState([]);
   const [showCreatePoll, setShowCreatePoll] = useState(false);
   const [newPoll, setNewPoll] = useState({ question: '', options: ['', ''] });
   const [raisedHands, setRaisedHands] = useState([]);
+  const [remoteTracks, setRemoteTracks] = useState({});
   const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
   const socketRef = useRef(null);
-  const localStreamRef = useRef(null);
+  const roomRef = useRef(null);
 
   useEffect(() => {
     // Initialize socket connection
@@ -88,29 +90,79 @@ const LiveClass = () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
+      if (roomRef.current) {
+        roomRef.current.disconnect();
+        roomRef.current = null;
+      }
     };
   }, []);
 
   const joinSession = async () => {
-    if (sessionId && socketRef.current) {
-      socketRef.current.emit('join-session', sessionId);
-      
-      // Get local media stream
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
+    if (!sessionId || !socketRef.current) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('You must be logged in to join a live class.');
+      return;
+    }
+
+    try {
+      const { data } = await axios.post(`${API_BASE_URL}/api/livekit/token`,
+        { session_id: sessionId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const room = new Room();
+      roomRef.current = room;
+
+      room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        setRemoteTracks((prev) => ({
+          ...prev,
+          [publication.trackSid]: {
+            sid: publication.trackSid,
+            kind: track.kind,
+            track,
+            participantIdentity: participant.identity,
+            participantName: participant.name || participant.identity
+          }
+        }));
+      });
+
+      room.on(RoomEvent.TrackUnsubscribed, (_track, publication) => {
+        setRemoteTracks((prev) => {
+          const next = { ...prev };
+          delete next[publication.trackSid];
+          return next;
         });
-        
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
+      });
+
+      room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+        setRemoteTracks((prev) => {
+          const next = { ...prev };
+          Object.keys(next).forEach((key) => {
+            if (next[key].participantIdentity === participant.identity) delete next[key];
+          });
+          return next;
+        });
+      });
+
+      room.on(RoomEvent.LocalTrackPublished, (publication) => {
+        if (publication.kind === Track.Kind.Video && publication.videoTrack && localVideoRef.current) {
+          publication.videoTrack.attach(localVideoRef.current);
         }
-        
-        // Store stream for later use
-        localStreamRef.current = stream;
-      } catch (error) {
-        console.error('Error accessing media devices:', error);
-        alert('Could not access camera/microphone. Please ensure permissions are granted.');
+      });
+
+      await room.connect(data.url, data.token);
+      socketRef.current.emit('join-session', sessionId);
+
+      await room.localParticipant.setCameraEnabled(true);
+      await room.localParticipant.setMicrophoneEnabled(true);
+    } catch (error) {
+      console.error('Error joining video session:', error);
+      alert('Could not join the video session: ' + (error.response?.data?.error || error.message));
+      if (roomRef.current) {
+        roomRef.current.disconnect();
+        roomRef.current = null;
       }
     }
   };
@@ -118,53 +170,40 @@ const LiveClass = () => {
   const leaveSession = () => {
     if (sessionId && socketRef.current) {
       socketRef.current.emit('leave-session', sessionId);
-      setSessionId('');
-      
-      // Stop local media stream
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
-        localStreamRef.current = null;
-      }
-      
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = null;
-      }
     }
+
+    if (roomRef.current) {
+      roomRef.current.disconnect();
+      roomRef.current = null;
+    }
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+
+    setSessionId('');
+    setRemoteTracks({});
+    setIsMuted(false);
+    setIsVideoOff(false);
+    setIsScreenSharing(false);
   };
 
-  const toggleMute = () => {
-    if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !isMuted;
-        setIsMuted(!isMuted);
-      }
-    }
+  const toggleMute = async () => {
+    if (!roomRef.current) return;
+    await roomRef.current.localParticipant.setMicrophoneEnabled(isMuted);
+    setIsMuted(!isMuted);
   };
 
-  const toggleVideo = () => {
-    if (localStreamRef.current) {
-      const videoTrack = localStreamRef.current.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !isVideoOff;
-        setIsVideoOff(!isVideoOff);
-      }
-    }
+  const toggleVideo = async () => {
+    if (!roomRef.current) return;
+    await roomRef.current.localParticipant.setCameraEnabled(isVideoOff);
+    setIsVideoOff(!isVideoOff);
   };
 
   const toggleScreenShare = async () => {
+    if (!roomRef.current) return;
     try {
-      if (!isScreenSharing) {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { cursor: "always" },
-          audio: false
-        });
-        setIsScreenSharing(true);
-        // In a real implementation, you would send this stream to the peer connection
-      } else {
-        setIsScreenSharing(false);
-        // Stop screen sharing
-      }
+      await roomRef.current.localParticipant.setScreenShareEnabled(!isScreenSharing);
+      setIsScreenSharing(!isScreenSharing);
     } catch (error) {
       console.error('Error sharing screen:', error);
     }
@@ -248,7 +287,7 @@ const LiveClass = () => {
         <div className="flex items-center space-x-4">
           <div className="flex items-center">
             <UsersIcon className="h-5 w-5 mr-2" />
-            <span>{participants.length + 1}</span>
+            <span>{new Set(Object.values(remoteTracks).map((t) => t.participantIdentity)).size + (sessionId ? 1 : 0)}</span>
           </div>
           {sessionId && (
             <>
@@ -293,7 +332,7 @@ const LiveClass = () => {
                 </h2>
                 <input
                   type="text"
-                  placeholder="Enter Session ID"
+                  placeholder="Enter Video Session ID"
                   value={sessionId}
                   onChange={(e) => setSessionId(e.target.value)}
                   className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -308,17 +347,30 @@ const LiveClass = () => {
             </div>
           ) : (
             <>
-              {/* Remote Video (Teacher/Main) */}
-              <div className="flex-1 bg-black relative">
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded">
-                  Teacher's Screen
-                </div>
+              {/* Remote participants */}
+              <div className="flex-1 bg-black relative p-2 grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gridAutoRows: '1fr' }}>
+                {Object.values(remoteTracks).filter((t) => t.kind === 'video').length === 0 ? (
+                  <div className="flex items-center justify-center text-gray-400">
+                    Waiting for others to join...
+                  </div>
+                ) : (
+                  Object.values(remoteTracks).filter((t) => t.kind === 'video').map((t) => (
+                    <div key={t.sid} className="relative bg-gray-900 rounded-lg overflow-hidden">
+                      <video
+                        ref={(el) => { if (el) t.track.attach(el); }}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
+                        {t.participantName}
+                      </div>
+                    </div>
+                  ))
+                )}
+                {Object.values(remoteTracks).filter((t) => t.kind === 'audio').map((t) => (
+                  <audio key={t.sid} ref={(el) => { if (el) t.track.attach(el); }} autoPlay />
+                ))}
               </div>
 
               {/* Local Video (Self) */}
