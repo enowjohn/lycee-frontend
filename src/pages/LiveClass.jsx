@@ -440,13 +440,6 @@ const LiveClass = () => {
           {isConnected && <span className="px-3 py-1 bg-green-600 rounded-full text-sm">Live</span>}
         </div>
         <div className="flex items-center space-x-4">
-<<<<<<< HEAD
-          <div className="flex items-center">
-            <UsersIcon className="h-5 w-5 mr-2" />
-            <span>{new Set(Object.values(remoteTracks).map((t) => t.participantIdentity)).size + (sessionId ? 1 : 0)}</span>
-          </div>
-          {sessionId && (
-=======
           {isConnected && (
             <button type="button" onClick={() => setShowParticipants(!showParticipants)} className="flex items-center hover:bg-gray-700 rounded-lg px-2 py-1" title="Participants">
               <UsersIcon className="h-5 w-5 mr-2" />
@@ -454,7 +447,6 @@ const LiveClass = () => {
             </button>
           )}
           {isConnected && (
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
             <>
               <button type="button" onClick={() => setShowPolls(!showPolls)} className="p-2 hover:bg-gray-700 rounded-lg relative" title="Polls">
                 <span className="text-white font-semibold">📊</span>
@@ -482,18 +474,6 @@ const LiveClass = () => {
           {!isConnected ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="bg-gray-800 rounded-xl p-8 max-w-md w-full">
-<<<<<<< HEAD
-                <h2 className="text-2xl font-bold text-white mb-4 text-center">
-                  Join a Class Session
-                </h2>
-                <input
-                  type="text"
-                  placeholder="Enter Video Session ID"
-                  value={sessionId}
-                  onChange={(e) => setSessionId(e.target.value)}
-                  className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-=======
                 <h2 className="text-2xl font-bold text-white mb-4 text-center">Join a Class Session</h2>
 
                 {liveAnnouncement && (
@@ -534,7 +514,6 @@ const LiveClass = () => {
                   </div>
                 )}
 
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
                 <button
                   type="button"
                   onClick={() => setShowCreateSession(true)}
@@ -577,7 +556,6 @@ const LiveClass = () => {
               </div>
             </div>
           ) : (
-<<<<<<< HEAD
             <>
               {/* Remote participants */}
               <div className="flex-1 bg-black relative p-2 grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gridAutoRows: '1fr' }}>
@@ -616,29 +594,9 @@ const LiveClass = () => {
                 />
                 <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
                   You
-=======
-            <div
-              className="flex-1 bg-black p-4 grid gap-4"
-              style={{ gridTemplateColumns: `repeat(${Math.min(tiles.length || 1, 4)}, 1fr)` }}
-            >
-              {tiles.length === 0 && (
-                <div className="flex items-center justify-center text-gray-400 col-span-full">
-                  Waiting for the teacher to start their camera…
                 </div>
-              )}
-              {tiles.map(tile => (
-                <div key={tile.identity} className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video">
-                  <div
-                    ref={el => { videoContainerRefs.current[tile.identity] = el; }}
-                    className="w-full h-full [&>video]:w-full [&>video]:h-full [&>video]:object-cover"
-                  />
-                  <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
-                    {tile.isLocal ? 'You' : tile.name}
-                  </div>
->>>>>>> 72cf667e855d7a2fe3c8502336979cf3465cbbd3
-                </div>
-              ))}
-            </div>
+              </div>
+            </>
           )}
 
           {isConnected && (
@@ -1016,5 +974,4 @@ const LiveClass = () => {
     </div>
   );
 };
-
 export default LiveClass;
