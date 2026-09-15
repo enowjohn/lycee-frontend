@@ -2,7 +2,7 @@
   "//": "Schema loading warnings are IDE network issues and can be safely ignored - package.json is fully valid for npm/yarn",
   "name": "frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "description": "Frontend React application for Lycée Bilingue Obessa School Management System",
   "scripts": {
