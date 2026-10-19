@@ -52,7 +52,7 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-transparent flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 animate-fadeIn">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
@@ -188,6 +188,25 @@ const Register = () => {
             </Link>
           </div>
         </form>
+
+        {/* School fees summary — the fee is paid during admission. */}
+        <div className="bg-white rounded-xl shadow p-5 text-sm">
+          <h3 className="font-semibold text-gray-800 mb-2">School Fees</h3>
+          <div className="flex justify-between py-1.5 border-b border-gray-200">
+            <span className="text-gray-600">Form 1 – Form 5</span>
+            <strong className="text-blue-800">42,700 XAF</strong>
+          </div>
+          <div className="flex justify-between py-1.5">
+            <span className="text-gray-600">Lower Sixth – Upper Sixth (LSS–USS)</span>
+            <strong className="text-blue-800">47,300 XAF</strong>
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            Fees are paid during admission and a PDF receipt is issued.{' '}
+            <Link to="/admissions" className="text-teal-700 font-medium hover:underline">
+              Start an application →
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

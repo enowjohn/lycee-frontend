@@ -1,0 +1,50 @@
+{
+  "name": "Lycée Bilingue Ombessa",
+  "short_name": "Lycée Obessa",
+  "description": "School management system for Lycée Bilingue Ombessa — admissions, live classes and messaging.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fafc",
+  "theme_color": "#115e59",
+  "lang": "en",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Admissions",
+      "short_name": "Admissions",
+      "url": "/admissions"
+    },
+    {
+      "name": "Live Class",
+      "short_name": "Live Class",
+      "url": "/live-class"
+    },
+    {
+      "name": "Messages",
+      "short_name": "Messages",
+      "url": "/messaging"
+    }
+  ]
+}

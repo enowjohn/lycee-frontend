@@ -9,7 +9,8 @@ import {
   UsersIcon,
   XIcon,
   ClipboardCopyIcon,
-  CheckIcon
+  CheckIcon,
+  UserAddIcon
 } from '@heroicons/react/outline';
 import io from 'socket.io-client';
 import axios from 'axios';
@@ -20,7 +21,25 @@ import toast from 'react-hot-toast';
 
 const LiveClass = () => {
   const authToken = localStorage.getItem('token');
-  const currentUserId = localStorage.getItem('userId') || 'user';
+  // Derive the real user id from the stored profile or the JWT payload (the
+  // app never stored a `userId` key, so this used to fall back to "user").
+  const currentUserId = (() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      if (stored.id) return String(stored.id);
+    } catch {
+      /* ignore */
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const decoded = JSON.parse(atob(payload));
+      if (decoded.id) return String(decoded.id);
+    } catch {
+      /* ignore */
+    }
+    return 'user';
+  })();
   const [searchParams] = useSearchParams();
   const [sessionId, setSessionId] = useState(searchParams.get('meetingId') || '');
   const [isConnected, setIsConnected] = useState(false);
@@ -59,6 +78,13 @@ const LiveClass = () => {
   const [creatingSession, setCreatingSession] = useState(false);
   const [liveAnnouncement, setLiveAnnouncement] = useState(null); // { meetingId, title } when a teacher in your class just went live
 
+  // "Add people to the class" (Google-Meet-style invites).
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteContacts, setInviteContacts] = useState([]);
+  const [inviteSearch, setInviteSearch] = useState('');
+  const [selectedInvitees, setSelectedInvitees] = useState([]);
+  const [inviting, setInviting] = useState(false);
+
   const localVideoRef = useRef(null);
   const socketRef = useRef(null);
   const roomRef = useRef(null);
@@ -89,6 +115,12 @@ const LiveClass = () => {
     socketRef.current.on('session-live', (data) => {
       setLiveAnnouncement(data);
       toast.success(`${data.title} is live now!`, { duration: 6000 });
+    });
+
+    // Someone added you to a class (invite from the "Add people" panel).
+    socketRef.current.on('live-invite', (data) => {
+      setLiveAnnouncement({ meetingId: data.meetingId, title: data.title });
+      toast.success(`You were invited to ${data.title}.`, { duration: 7000 });
     });
 
     // Only students have a class_level to subscribe to — this silently
@@ -126,7 +158,18 @@ const LiveClass = () => {
   // RoomEvent.LocalTrackPublished (your own camera), which is the piece
   // that was missing before: local publications never fire "Subscribed".
   const attachTrack = useCallback((track, participant) => {
-    if (track.kind !== 'video') return; // audio just needs to play, not render — see below
+    if (track.kind === 'audio') {
+      // Remote audio: attach to a hidden media element so it plays. Local
+      // microphone audio is intentionally NOT attached (would echo).
+      if (!participant?.isLocal) {
+        const el = track.attach();
+        el.autoplay = true;
+        el.style.display = 'none';
+        document.body.appendChild(el);
+      }
+      return;
+    }
+    if (track.kind !== 'video') return; // only video is rendered as tiles
     const el = track.attach();
     setTiles(prev => {
       const exists = prev.some(t => t.identity === participant.identity);
@@ -141,8 +184,8 @@ const LiveClass = () => {
   }, []);
 
   const detachTrack = useCallback((track, participant) => {
-    if (track.kind !== 'video') return;
     track.detach().forEach(el => el.remove());
+    if (track.kind !== 'video') return;
     setTiles(prev => prev.filter(t => t.identity !== participant.identity));
   }, []);
 
@@ -181,7 +224,8 @@ const LiveClass = () => {
 
       socketRef.current.emit('join-session', data.roomName);
       setIsTeacher(data.isTeacher);
-      setCanPublish(data.isTeacher);
+      // Everyone in a class may publish (turn on mic/camera) — Meet-style.
+      setCanPublish(true);
 
       const room = new Room({
         adaptiveStream: true, // each viewer only pulls the video quality their tile size needs
@@ -210,6 +254,14 @@ const LiveClass = () => {
       await room.connect(data.wsUrl, data.token);
       setIsConnected(true);
       refreshParticipants(room);
+
+      // Browsers block audio autoplay until a user gesture. Clicking "Join"
+      // is that gesture, so this unlocks remote audio for the session.
+      try {
+        await room.startAudio();
+      } catch (audioError) {
+        console.warn('Could not start remote audio:', audioError);
+      }
 
       if (data.isTeacher) {
         try {
@@ -421,6 +473,73 @@ const LiveClass = () => {
     }
   };
 
+  // ---- Add people to the class -------------------------------------------
+  const openInvite = async () => {
+    setShowInvite(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      const data = await res.json();
+      if (res.ok) setInviteContacts(data);
+    } catch (error) {
+      toast.error('Could not load the participant list.');
+    }
+  };
+
+  const toggleInvitee = (id) => {
+    setSelectedInvitees((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const sendInvites = async () => {
+    if (selectedInvitees.length === 0) {
+      toast.error('Select at least one person.');
+      return;
+    }
+    if (!sessionId) {
+      toast.error('Join or create a session first.');
+      return;
+    }
+    setInviting(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/video-sessions/${encodeURIComponent(sessionId)}/invite`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify({ userIds: selectedInvitees })
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not send invitations');
+      toast.success(data.message || 'Invitations sent!');
+      setSelectedInvitees([]);
+      setShowInvite(false);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const copyJoinLink = async () => {
+    if (!sessionId) return;
+    const link = `${window.location.origin}/live-class?meetingId=${encodeURIComponent(sessionId)}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success('Join link copied — share it with your class.');
+    } catch (error) {
+      toast.error('Could not copy the link.');
+    }
+  };
+
+  const filteredInviteContacts = inviteContacts.filter((c) => {
+    const q = inviteSearch.trim().toLowerCase();
+    return !q || `${c.name} ${c.email} ${c.role}`.toLowerCase().includes(q);
+  });
+
   // Mount each track's <video> element into its React-rendered container.
   useEffect(() => {
     tiles.forEach(tile => {
@@ -444,6 +563,17 @@ const LiveClass = () => {
             <button type="button" onClick={() => setShowParticipants(!showParticipants)} className="flex items-center hover:bg-gray-700 rounded-lg px-2 py-1" title="Participants">
               <UsersIcon className="h-5 w-5 mr-2" />
               <span>{viewerCount}</span>
+            </button>
+          )}
+          {isConnected && (
+            <button type="button" onClick={openInvite} className="flex items-center hover:bg-gray-700 rounded-lg px-2 py-1" title="Add people to the class">
+              <UserAddIcon className="h-5 w-5 sm:mr-2" />
+              <span className="hidden sm:inline text-sm">Add people</span>
+            </button>
+          )}
+          {isConnected && (
+            <button type="button" onClick={copyJoinLink} className="p-2 hover:bg-gray-700 rounded-lg" title="Copy join link">
+              <ClipboardCopyIcon className="h-5 w-5" />
             </button>
           )}
           {isConnected && (
@@ -557,44 +687,39 @@ const LiveClass = () => {
             </div>
           ) : (
             <>
-              {/* Remote participants */}
-              <div className="flex-1 bg-black relative p-2 grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gridAutoRows: '1fr' }}>
-                {Object.values(remoteTracks).filter((t) => t.kind === 'video').length === 0 ? (
-                  <div className="flex items-center justify-center text-gray-400">
-                    Waiting for others to join...
+              {/* Video grid — populated by LiveKit's track events (local + remote) */}
+              <div
+                className="flex-1 bg-black relative p-2 grid gap-2 video-grid"
+                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gridAutoRows: '1fr' }}
+              >
+                {tiles.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center text-gray-400 text-center px-4">
+                    <VideoCameraIcon className="h-10 w-10 mb-2" />
+                    <p>Waiting for cameras…</p>
+                    <span className="text-xs mt-1">
+                      Anyone who turns on their camera appears here. Teachers are on camera automatically.
+                    </span>
                   </div>
                 ) : (
-                  Object.values(remoteTracks).filter((t) => t.kind === 'video').map((t) => (
-                    <div key={t.sid} className="relative bg-gray-900 rounded-lg overflow-hidden">
-                      <video
-                        ref={(el) => { if (el) t.track.attach(el); }}
-                        autoPlay
-                        playsInline
-                        className="w-full h-full object-cover"
+                  tiles.map((tile) => (
+                    <div
+                      key={tile.identity}
+                      className={`relative bg-gray-900 rounded-lg overflow-hidden ${
+                        tile.isLocal ? 'ring-2 ring-teal-500' : ''
+                      }`}
+                    >
+                      <div
+                        ref={(el) => {
+                          if (el) videoContainerRefs.current[tile.identity] = el;
+                        }}
+                        className="video-tile w-full h-full"
                       />
-                      <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
-                        {t.participantName}
+                      <div className="absolute bottom-2 left-2 bg-black bg-opacity-60 text-white px-2 py-1 rounded text-xs">
+                        {tile.isLocal ? 'You' : tile.name}
                       </div>
                     </div>
                   ))
                 )}
-                {Object.values(remoteTracks).filter((t) => t.kind === 'audio').map((t) => (
-                  <audio key={t.sid} ref={(el) => { if (el) t.track.attach(el); }} autoPlay />
-                ))}
-              </div>
-
-              {/* Local Video (Self) */}
-              <div className="absolute bottom-4 right-4 w-48 h-36 bg-gray-800 rounded-lg overflow-hidden shadow-lg">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
-                  You
-                </div>
               </div>
             </>
           )}
@@ -886,6 +1011,72 @@ const LiveClass = () => {
                     {creatingSession ? 'Creating…' : 'Create Session'}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add people to the class */}
+        {showInvite && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full max-h-[85vh] flex flex-col">
+              <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-800">Add people to the class</h3>
+                <button type="button" onClick={() => setShowInvite(false)} className="text-gray-400 hover:text-gray-600">
+                  <XIcon className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="p-4 overflow-y-auto custom-scrollbar">
+                <p className="text-sm text-gray-600 mb-3">
+                  Select people to invite. They get an instant notification and can join with one click.
+                </p>
+                <input
+                  type="text"
+                  value={inviteSearch}
+                  onChange={(e) => setInviteSearch(e.target.value)}
+                  placeholder="Search by name, email or role…"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 mb-3"
+                />
+                <div className="space-y-1">
+                  {filteredInviteContacts.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">No people found.</p>
+                  ) : (
+                    filteredInviteContacts.map((c) => (
+                      <label
+                        key={c.id}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-teal-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedInvitees.includes(c.id)}
+                          onChange={() => toggleInvitee(c.id)}
+                          className="h-4 w-4 text-teal-600 rounded"
+                        />
+                        <span className="flex-1 text-sm text-gray-800 truncate">{c.name}</span>
+                        <span className="text-[10px] uppercase tracking-wide text-gray-400">{c.role}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div className="p-4 border-t border-gray-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowInvite(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={sendInvites}
+                  disabled={inviting || selectedInvitees.length === 0}
+                  className="px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors disabled:opacity-50"
+                >
+                  {inviting
+                    ? 'Sending…'
+                    : `Invite${selectedInvitees.length ? ` (${selectedInvitees.length})` : ''}`}
+                </button>
               </div>
             </div>
           </div>

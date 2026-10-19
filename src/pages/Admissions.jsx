@@ -43,23 +43,19 @@ const requirements = [
 ];
 
 const feeStructure = [
-  { level: 'Form 1-3', fee: '500,000 XAF' },
-  { level: 'Form 4-5', fee: '550,000 XAF' },
-  { level: 'Lower Sixth', fee: '600,000 XAF' },
-  { level: 'Upper Sixth', fee: '650,000 XAF' }
+  { level: 'Form 1 - Form 5', fee: 42700 },
+  { level: 'Lower Sixth - Upper Sixth (LSS-USS)', fee: 47300 }
 ];
+
+const formatXAF = (n) => `${Number(n || 0).toLocaleString('en-US')} XAF`;
 
 // Best-effort match of the applicant's free-text class level to the fee table.
 function findFeeForClass(classLevel) {
   if (!classLevel) return null;
-  const normalized = classLevel.trim().toLowerCase();
-  return (
-    feeStructure.find(
-      (item) =>
-        normalized.includes(item.level.toLowerCase()) ||
-        item.level.toLowerCase().includes(normalized)
-    ) || null
-  );
+  const n = classLevel.trim().toLowerCase();
+  if (/sixth|lss|uss|premiere|1ere|terminale/.test(n)) return feeStructure[1];
+  if (/form|class|5e|4e|3e|2e|secondary|[1-5]/.test(n)) return feeStructure[0];
+  return null;
 }
 
 const emptyFormData = {
@@ -95,6 +91,10 @@ const Admissions = () => {
 
   const [showScholarshipInfo, setShowScholarshipInfo] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Fee payment, recorded against the application on the server.
+  const [paymentForm, setPaymentForm] = useState({ amount: '', method: 'cash', reference: '' });
+  const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     try {
@@ -162,6 +162,11 @@ const Admissions = () => {
         application_number: response.data.application_number,
         photo_url: response.data.photo_url || null,
         photoDataUrl: photoPreview || null,
+        fee_amount: response.data.fee_amount ?? null,
+        fee_label: response.data.fee_label ?? null,
+        amount_paid: response.data.amount_paid ?? 0,
+        balance: response.data.balance ?? null,
+        payment_status: response.data.payment_status || 'unpaid',
         submitted_at: new Date().toISOString()
       };
 
@@ -208,6 +213,47 @@ const Admissions = () => {
     }
   };
 
+  const handlePay = async (e) => {
+    e.preventDefault();
+    if (!receipt) return;
+    const amount = parseFloat(paymentForm.amount);
+    if (!amount || amount <= 0) {
+      toast.error('Enter a valid amount to pay.');
+      return;
+    }
+    setPaying(true);
+    try {
+      const res = await axios.post(
+        `${API_BASE_URL}/api/applications/${receipt.application_number}/pay`,
+        { amount, method: paymentForm.method, reference: paymentForm.reference }
+      );
+      const updated = {
+        ...receipt,
+        amount_paid: res.data.amount_paid,
+        balance: res.data.balance,
+        payment_status: res.data.payment_status,
+        payment_method: res.data.payment_method,
+        payment_reference: res.data.payment_reference,
+        receipt_number: res.data.receipt_number,
+        paid_at: res.data.paid_at,
+        fee_amount: res.data.fee_amount ?? receipt.fee_amount,
+        fee_label: res.data.fee_label ?? receipt.fee_label
+      };
+      setReceipt(updated);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      setPaymentForm({ amount: '', method: 'cash', reference: '' });
+      toast.success(
+        updated.payment_status === 'paid'
+          ? 'Fee fully paid — your receipt is ready!'
+          : 'Payment recorded.'
+      );
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Could not record the payment.');
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const checkStatus = async () => {
     const appNumber = prompt('Enter your application number:');
     if (appNumber) {
@@ -233,7 +279,7 @@ const Admissions = () => {
     y += 22;
     doc.setFontSize(12);
     doc.setFont(undefined, 'normal');
-    doc.text('Admission Application Receipt', pageWidth / 2, y, { align: 'center' });
+    doc.text('Official Fee Receipt', pageWidth / 2, y, { align: 'center' });
     y += 30;
 
     doc.setDrawColor(200);
@@ -293,7 +339,7 @@ const Admissions = () => {
       ['Parent Phone', record.parent_phone],
       ['Parent Email', record.parent_email],
       ['Address', record.address],
-      ['Amount Already Paid', record.amount_paid ? `${record.amount_paid} XAF` : 'None recorded']
+      ['Amount Paid', record.amount_paid ? formatXAF(record.amount_paid) : 'None recorded']
     ];
 
     doc.setFontSize(11);
@@ -313,21 +359,75 @@ const Admissions = () => {
     doc.line(margin, y, pageWidth - margin, y);
     y += 30;
 
-    // Fee / payment section
-    const matchedFee = findFeeForClass(record.class_level);
+    // ---- Fee / payment summary ----
+    const feeAmount = record.fee_amount != null
+      ? record.fee_amount
+      : (findFeeForClass(record.class_level)?.fee ?? null);
+    const feeLabel = record.fee_label || findFeeForClass(record.class_level)?.level || 'Tuition';
+    const paid = Number(record.amount_paid || 0);
+    const balance = feeAmount != null ? Math.max(0, feeAmount - paid) : null;
+    const status = record.payment_status
+      || (feeAmount != null && balance === 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid');
+
     doc.setFontSize(13);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(20);
-    doc.text('Payment Instructions', margin, y);
+    doc.text('Fee & Payment Summary', margin, y);
     y += 22;
+
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(60);
+    doc.text(`Class level: ${record.class_level || '—'}  (${feeLabel})`, margin, y);
+    y += 18;
+    doc.text(`Total fee: ${feeAmount != null ? formatXAF(feeAmount) : 'To be confirmed'}`, margin, y);
+    y += 18;
+    doc.text(`Amount paid: ${formatXAF(paid)}`, margin, y);
+    y += 18;
+    doc.text(`Balance: ${balance != null ? formatXAF(balance) : '—'}`, margin, y);
+    y += 18;
+    doc.text(`Status: ${String(status).toUpperCase()}`, margin, y);
+    y += 18;
+    if (record.receipt_number) {
+      doc.text(`Receipt No: ${record.receipt_number}`, margin, y);
+      y += 18;
+    }
+    if (record.payment_method) {
+      doc.text(
+        `Payment method: ${record.payment_method}${record.payment_reference ? ` (ref ${record.payment_reference})` : ''}`,
+        margin,
+        y
+      );
+      y += 18;
+    }
+
+    if (status === 'paid') {
+      doc.setDrawColor(13, 148, 136);
+      doc.setTextColor(13, 148, 136);
+      doc.setFontSize(34);
+      doc.setFont(undefined, 'bold');
+      doc.text('PAID', pageWidth - margin - 24, y + 2, { align: 'right' });
+      y += 30;
+    }
+
+    y += 8;
+    doc.setDrawColor(200);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 26;
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(20);
+    doc.text('Payment Instructions', margin, y);
+    y += 20;
 
     doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(60);
-    doc.text('Pay your tuition fee at the bank below, using the application number', margin, y);
+    doc.text('Pay any outstanding balance at the bank below, using the application', margin, y);
     y += 14;
-    doc.text('shown above as the payment reference so it is matched to your record:', margin, y);
-    y += 26;
+    doc.text('number as the payment reference so it is matched to your record:', margin, y);
+    y += 24;
 
     doc.setFont(undefined, 'bold');
     doc.setFontSize(11);
@@ -336,19 +436,14 @@ const Admissions = () => {
     doc.text(`Account Name: ${BANK_ACCOUNT_NAME}`, margin, y);
     y += 16;
     doc.text(`Account Number: ${BANK_ACCOUNT_NUMBER}`, margin, y);
-    y += 26;
-
-    if (matchedFee) {
-      doc.text(`Amount Due (${matchedFee.level}): ${matchedFee.fee}`, margin, y);
-      y += 26;
-    }
+    y += 24;
 
     // Highlighted reference number box with an arrow pointing at it
-    doc.setFillColor(255, 247, 220);
-    doc.setDrawColor(230, 180, 60);
+    doc.setFillColor(240, 253, 250);
+    doc.setDrawColor(13, 148, 136);
     doc.roundedRect(margin, y, pageWidth - margin * 2, 46, 6, 6, 'FD');
     doc.setFontSize(10);
-    doc.setTextColor(120, 90, 10);
+    doc.setTextColor(15, 118, 110);
     doc.setFont(undefined, 'normal');
     doc.text('PAYMENT REFERENCE →', margin + 14, y + 28);
     doc.setFontSize(16);
@@ -356,7 +451,7 @@ const Admissions = () => {
     doc.setTextColor(20);
     doc.text(record.application_number, margin + 170, y + 30);
 
-    doc.save(`Admission_Receipt_${record.application_number}.pdf`);
+    doc.save(`Receipt_${record.receipt_number || record.application_number}.pdf`);
   };
 
   const matchedFee = receipt ? findFeeForClass(receipt.class_level) : null;
@@ -382,7 +477,7 @@ const Admissions = () => {
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Online Application</h2>
 
             {receipt ? (
-              <div className="bg-white rounded-xl shadow-md p-6 space-y-6">
+              <div className="print-area bg-white rounded-xl shadow-md p-6 space-y-6">
                 <div className="flex items-start bg-green-50 border border-green-200 rounded-xl p-4">
                   <CheckCircleIcon className="h-8 w-8 text-green-600 mr-3 flex-shrink-0" />
                   <div>
@@ -437,7 +532,7 @@ const Admissions = () => {
                   </dl>
                 </div>
 
-                {/* Payment reference, highlighted with arrow */}
+                {/* Payment reference + fee summary */}
                 <div className="bg-amber-50 border border-amber-300 rounded-xl p-4">
                   <p className="text-sm text-amber-800 mb-2">
                     Pay your tuition fee at the bank using this number as your{' '}
@@ -449,20 +544,117 @@ const Admissions = () => {
                       {receipt.application_number}
                     </span>
                   </div>
-                  {matchedFee && (
-                    <p className="text-sm text-amber-800 mt-2">
-                      Amount due for {matchedFee.level}: <strong>{matchedFee.fee}</strong>
-                    </p>
-                  )}
-                  {receipt.amount_paid && (
-                    <p className="text-sm text-amber-800 mt-1">
-                      Amount already paid: <strong>{receipt.amount_paid} XAF</strong>
-                    </p>
-                  )}
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-amber-900">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-amber-700">Total fee</p>
+                      <p className="font-semibold">
+                        {receipt.fee_amount != null
+                          ? formatXAF(receipt.fee_amount)
+                          : matchedFee ? formatXAF(matchedFee.fee) : 'To be confirmed'}
+                      </p>
+                      {receipt.fee_label && (
+                        <p className="text-xs text-amber-700">{receipt.fee_label}</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-amber-700">Balance</p>
+                      <p className="font-semibold">
+                        {receipt.balance != null ? formatXAF(receipt.balance) : '—'}
+                      </p>
+                      <p className="text-xs text-amber-700">
+                        Paid {formatXAF(receipt.amount_paid || 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3">
+                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      receipt.payment_status === 'paid'
+                        ? 'bg-teal-100 text-teal-800'
+                        : receipt.payment_status === 'partial'
+                          ? 'bg-amber-200 text-amber-900'
+                          : 'bg-red-100 text-red-700'
+                    }`}>
+                      {receipt.payment_status === 'paid'
+                        ? 'PAID'
+                        : receipt.payment_status === 'partial'
+                          ? 'PARTIALLY PAID'
+                          : 'UNPAID'}
+                    </span>
+                  </div>
+
                   <p className="text-xs text-amber-700 mt-2">
-                    Bank details are on your downloadable PDF receipt.
+                    Bank details and the full fee breakdown are on your downloadable PDF receipt.
                   </p>
                 </div>
+
+                {/* Record a payment (cash / bank / mobile money) */}
+                {(receipt.fee_amount != null || matchedFee) && receipt.payment_status !== 'paid' && (
+                  <form onSubmit={handlePay} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                      Record a Payment
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Amount (XAF)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          required
+                          value={paymentForm.amount}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          placeholder={String(receipt.balance || '')}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Method</label>
+                        <select
+                          value={paymentForm.method}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        >
+                          <option value="cash">Cash</option>
+                          <option value="bank">Bank transfer</option>
+                          <option value="momo">MTN Mobile Money</option>
+                          <option value="om">Orange Money</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Reference (optional)</label>
+                        <input
+                          type="text"
+                          value={paymentForm.reference}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          placeholder="Bank/MoMo ref"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={paying}
+                        className="flex-1 py-2.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors font-semibold disabled:opacity-50"
+                      >
+                        {paying ? 'Recording…' : 'Record Payment'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentForm({
+                          ...paymentForm,
+                          amount: String(receipt.balance || receipt.fee_amount || (matchedFee && matchedFee.fee) || '')
+                        })}
+                        className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                      >
+                        Pay full balance
+                      </button>
+                    </div>
+                  </form>
+                )}
 
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -579,15 +771,27 @@ const Admissions = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Class Level</label>
-                    <input
-                      type="text"
+                    <select
                       name="class_level"
                       required
                       value={formData.class_level}
                       onChange={handleChange}
-                      placeholder="e.g., Form 1, 6ème"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                    >
+                      <option value="">Select class level</option>
+                      <option value="Form 1">Form 1</option>
+                      <option value="Form 2">Form 2</option>
+                      <option value="Form 3">Form 3</option>
+                      <option value="Form 4">Form 4</option>
+                      <option value="Form 5">Form 5</option>
+                      <option value="Lower Sixth">Lower Sixth (LSS)</option>
+                      <option value="Upper Sixth">Upper Sixth (USS)</option>
+                    </select>
+                    {findFeeForClass(formData.class_level) && (
+                      <p className="text-xs text-teal-700 mt-1 font-medium">
+                        Fee: {formatXAF(findFeeForClass(formData.class_level).fee)}
+                      </p>
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Parent/Guardian Name</label>
@@ -734,7 +938,7 @@ const Admissions = () => {
                 {feeStructure.map((item, index) => (
                   <div key={index} className="flex justify-between items-center py-2 border-b border-gray-200">
                     <span className="text-gray-700">{item.level}</span>
-                    <span className="font-semibold text-blue-800">{item.fee}</span>
+                    <span className="font-semibold text-blue-800">{formatXAF(item.fee)}</span>
                   </div>
                 ))}
               </div>

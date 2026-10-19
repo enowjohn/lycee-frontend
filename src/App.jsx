@@ -26,7 +26,7 @@ import './index.css';
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen app-shell">
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />

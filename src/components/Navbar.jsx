@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { MenuIcon, XIcon, UserIcon, AcademicCapIcon, BellIcon } from '@heroicons/react/outline';
+import { MenuIcon, XIcon, UserIcon, AcademicCapIcon, BellIcon, DownloadIcon } from '@heroicons/react/outline';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
 
@@ -10,6 +10,9 @@ const Navbar = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Android/Chrome fires `beforeinstallprompt` when the PWA is installable.
+  // We hold onto the event so a button can trigger the native install sheet.
+  const [installPrompt, setInstallPrompt] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -18,6 +21,31 @@ const Navbar = () => {
       fetchNotifications();
     }
   }, []);
+
+  useEffect(() => {
+    const onBeforeInstall = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    const onInstalled = () => setInstallPrompt(null);
+    window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    try {
+      await installPrompt.userChoice;
+    } catch (err) {
+      console.error('Install prompt dismissed:', err);
+    }
+    setInstallPrompt(null);
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -181,6 +209,19 @@ const Navbar = () => {
               {language === 'en' ? 'FR' : 'EN'}
             </button>
 
+            {/* Install as app (Android / Chrome) */}
+            {installPrompt && (
+              <button
+                type="button"
+                onClick={handleInstall}
+                className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 transition-colors ml-2"
+                title="Install this app on your phone"
+              >
+                <DownloadIcon className="h-4 w-4 mr-1" />
+                {language === 'en' ? 'Install App' : "Installer l'app"}
+              </button>
+            )}
+
             {/* Auth Buttons */}
             <div className="flex items-center space-x-2 ml-4">
               <Link
@@ -249,6 +290,16 @@ const Navbar = () => {
                 </Link>
               ))}
             </div>
+            {installPrompt && (
+              <button
+                type="button"
+                onClick={() => { toggleMenu(); handleInstall(); }}
+                className="w-full flex items-center justify-center px-3 py-2 rounded-md text-base font-medium text-teal-800 bg-teal-50 hover:bg-teal-100"
+              >
+                <DownloadIcon className="h-5 w-5 mr-2" />
+                {language === 'en' ? 'Install this app' : "Installer l'app"}
+              </button>
+            )}
             <div className="border-t border-gray-200 pt-2 mt-2 flex space-x-2">
               <Link
                 to="/login"
