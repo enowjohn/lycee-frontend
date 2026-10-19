@@ -93,6 +93,10 @@ const LiveClass = () => {
   useEffect(() => {
     socketRef.current = io(API_BASE_URL);
 
+    // Join the personal room so live-class invitations (and DMs/typing)
+    // reach this user even while they are on the Live Class page.
+    socketRef.current.emit('join', currentUserId);
+
     socketRef.current.on('session-message', (data) => setChatMessages(prev => [...prev, data]));
 
     socketRef.current.on('new-poll', (data) => setPolls(prev => [...prev, { ...data, id: Date.now() }]));
