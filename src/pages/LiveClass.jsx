@@ -40,6 +40,16 @@ const LiveClass = () => {
     }
     return 'user';
   })();
+  // Only teachers/admins may schedule sessions. Detected from the stored
+  // profile so students don't see a button that would just be rejected.
+  const currentRole = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}').role || '';
+    } catch {
+      return '';
+    }
+  })();
+  const canCreateSessions = currentRole === 'teacher' || currentRole === 'admin';
   const [searchParams] = useSearchParams();
   const [sessionId, setSessionId] = useState(searchParams.get('meetingId') || '');
   const [isConnected, setIsConnected] = useState(false);
@@ -648,13 +658,15 @@ const LiveClass = () => {
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => setShowCreateSession(true)}
-                  className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold mb-2"
-                >
-                  Create New Session
-                </button>
+                {canCreateSessions && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateSession(true)}
+                    className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold mb-2"
+                  >
+                    Create New Session
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={fetchAvailableSessions}

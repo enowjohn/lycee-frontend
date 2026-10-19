@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { API_BASE_URL } from '../config/api';
@@ -11,6 +11,9 @@ const Login = () => {
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get('expired') === '1';
+  const redirectTo = searchParams.get('redirect');
 
   const handleChange = (e) => {
     setFormData({
@@ -30,7 +33,14 @@ const Login = () => {
       localStorage.setItem('user', JSON.stringify(response.data.user));
       
       toast.success('Login successful!');
-      
+
+      // Return the user to the page that sent them here (e.g. Live Class),
+      // otherwise fall back to their role's home page.
+      if (redirectTo) {
+        navigate(redirectTo, { replace: true });
+        return;
+      }
+
       // Redirect based on role
       const role = response.data.user.role;
       switch (role) {
@@ -63,6 +73,11 @@ const Login = () => {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Sign in to your account
           </h2>
+          {sessionExpired && (
+            <div className="mt-4 rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 text-center">
+              Your session has ended. Please sign in again to continue.
+            </div>
+          )}
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{' '}
             <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
